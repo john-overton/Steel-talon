@@ -25,7 +25,10 @@ const input = createInput();
 input.attach(window);
 
 const audio = createAudio();
-window.addEventListener('keydown', () => audio.unlock(), { once: true });
+// No { once: true }: unlock() is idempotent and cheap, and if the context
+// is still suspended after the first keydown (autoplay policy quirks) we
+// want every subsequent keydown to retry rather than going silent forever.
+window.addEventListener('keydown', () => audio.unlock());
 
 const rng = mulberry32(SEED);
 const world = createWorld(rng);
@@ -40,6 +43,7 @@ const rotorLayer = chopperSprite.layers[3];
 const flashLayers = [chopperSprite.layers[4], chopperSprite.layers[5]];
 const boatPrepared = prepareLayered(createBoat());
 const tracerCanvas = rasterize(TRACER.frames[0]);
+const [TRACER_CX, TRACER_CY] = TRACER.anchors.center;
 
 const chopper = {
   x: WIDTH / 2,
@@ -49,14 +53,22 @@ const chopper = {
 };
 let ticks = 0;
 
+// Reused every tick instead of allocated: offsets from the chopper anchors
+// are static, only x/y need updating as the chopper moves.
+const MUZZLE_HALF = 16 * CHOPPER_SCALE;
+const [MUZZLE_L_X, MUZZLE_L_Y] = CHOPPER_BODY.anchors.muzzleL;
+const [MUZZLE_R_X, MUZZLE_R_Y] = CHOPPER_BODY.anchors.muzzleR;
+const MUZZLES: Muzzle[] = [
+  { x: 0, y: 0, dir: -1 },
+  { x: 0, y: 0, dir: 1 },
+];
+
 function muzzles(): Muzzle[] {
-  const half = 16 * CHOPPER_SCALE;
-  const [lx, ly] = CHOPPER_BODY.anchors.muzzleL;
-  const [rx, ry] = CHOPPER_BODY.anchors.muzzleR;
-  return [
-    { x: chopper.x - half + lx * CHOPPER_SCALE, y: chopper.y - half + ly * CHOPPER_SCALE, dir: -1 },
-    { x: chopper.x - half + rx * CHOPPER_SCALE, y: chopper.y - half + ry * CHOPPER_SCALE, dir: 1 },
-  ];
+  MUZZLES[0].x = chopper.x - MUZZLE_HALF + MUZZLE_L_X * CHOPPER_SCALE;
+  MUZZLES[0].y = chopper.y - MUZZLE_HALF + MUZZLE_L_Y * CHOPPER_SCALE;
+  MUZZLES[1].x = chopper.x - MUZZLE_HALF + MUZZLE_R_X * CHOPPER_SCALE;
+  MUZZLES[1].y = chopper.y - MUZZLE_HALF + MUZZLE_R_Y * CHOPPER_SCALE;
+  return MUZZLES;
 }
 
 function update(dt: number): void {
@@ -102,7 +114,7 @@ function render(): void {
     drawLayered(ctx, boatPrepared, e.pos.x, e.pos.y);
   });
   world.bullets.forEachAlive((b) => {
-    ctx.drawImage(tracerCanvas, Math.round(b.pos.x - 1), Math.round(b.pos.y - 2));
+    ctx.drawImage(tracerCanvas, Math.round(b.pos.x - TRACER_CX), Math.round(b.pos.y - TRACER_CY));
   });
   drawLayered(ctx, chopperPrepared, chopper.x, chopper.y, CHOPPER_SCALE);
   world.particles.forEachAlive((p) => {

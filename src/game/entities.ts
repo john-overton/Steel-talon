@@ -166,8 +166,14 @@ export function tickSpawner(w: World, s: Spawner, dt: number): void {
 
 export interface CollisionResult { hits: number; kills: number; }
 
+// Reused across calls to avoid a per-tick allocation; callers must not
+// retain the returned reference past their next call to this function.
+const collisionResult: CollisionResult = { hits: 0, kills: 0 };
+
 export function collideBulletsEnemies(w: World): CollisionResult {
-  const result: CollisionResult = { hits: 0, kills: 0 };
+  const result = collisionResult;
+  result.hits = 0;
+  result.kills = 0;
   w.bullets.forEachAlive((b) => {
     w.enemies.forEachAlive((e) => {
       if (!b.alive) return; // bullet spent earlier in this pass

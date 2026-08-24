@@ -69,10 +69,18 @@ export function layerOffsets(sprite: LayeredSprite): Array<{ x: number; y: numbe
 export interface PreparedLayered {
   sprite: LayeredSprite;
   canvases: HTMLCanvasElement[][]; // [layer][frame]
+  // Pixel offset of each layer relative to the base's top-left corner,
+  // computed once (offsets depend only on static anchors/attach) so
+  // drawLayered never reallocates per-frame.
+  offsets: Array<{ x: number; y: number }>;
 }
 
 export function prepareLayered(sprite: LayeredSprite): PreparedLayered {
-  return { sprite, canvases: sprite.layers.map((l) => l.def.frames.map(rasterize)) };
+  return {
+    sprite,
+    canvases: sprite.layers.map((l) => l.def.frames.map(rasterize)),
+    offsets: layerOffsets(sprite),
+  };
 }
 
 // Draws all layers centered on (cx, cy) using the base layer's dimensions.
@@ -83,10 +91,9 @@ export function drawLayered(
   cy: number,
   scale = 1,
 ): void {
-  const { sprite, canvases } = prepared;
+  const { sprite, canvases, offsets } = prepared;
   const baseGrid = sprite.layers[0]?.def.frames[0];
   if (!baseGrid) return;
-  const offsets = layerOffsets(sprite);
   const ox = cx - (baseGrid.width * scale) / 2;
   const oy = cy - (baseGrid.height * scale) / 2;
   sprite.layers.forEach((layer, i) => {

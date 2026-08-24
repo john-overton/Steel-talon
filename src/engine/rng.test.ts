@@ -18,6 +18,21 @@ describe('mulberry32', () => {
     expect(seqA).not.toEqual(seqB);
   });
 
+  it('pins the first 5 outputs of a fixed seed (golden sequence)', () => {
+    // Locks the implementation against accidental drift: any change to the
+    // mulberry32 algorithm that alters its output must be a deliberate,
+    // reviewed decision, since it would desync every seeded replay.
+    const rng = mulberry32(0xc0ffee);
+    const seq = Array.from({ length: 5 }, () => rng());
+    expect(seq).toEqual([
+      0.021141508361324668,
+      0.6661099966149777,
+      0.7799714196007699,
+      0.7395844468846917,
+      0.10705656302161515,
+    ]);
+  });
+
   it('outputs stay in [0, 1) and vary', () => {
     const rng = mulberry32(42);
     const seq = Array.from({ length: 1000 }, () => rng());

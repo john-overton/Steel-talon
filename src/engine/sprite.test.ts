@@ -96,6 +96,62 @@ describe('layerOffsets', () => {
   });
 });
 
+describe('drawLayered offsets', () => {
+  const base: SpriteDef = {
+    frames: [parseGrid(['00', '00'], PAL)],
+    anchors: { mast: [5, 6], pylon: [1, 2] },
+  };
+  const rotor: SpriteDef = {
+    frames: [parseGrid(['1'], PAL)],
+    anchors: { hub: [3, 3] },
+  };
+  const sprite: LayeredSprite = {
+    layers: [
+      { def: base, frame: 0 },
+      { def: rotor, frame: 0, attach: { to: 'mast', by: 'hub' } },
+    ],
+  };
+
+  it('draws using prepared.offsets, matching layerOffsets for the same sprite', () => {
+    const fake = {} as HTMLCanvasElement;
+    const prepared: PreparedLayered = {
+      sprite,
+      canvases: [[fake], [fake]],
+      offsets: layerOffsets(sprite),
+    };
+    const calls: unknown[][] = [];
+    const ctx = {
+      drawImage: (...args: unknown[]) => {
+        calls.push(args);
+      },
+    } as unknown as CanvasRenderingContext2D;
+    drawLayered(ctx, prepared, 100, 100);
+    // base at (100-1, 100-1); attached layer offset by (2,3) per layerOffsets
+    expect(calls[0]).toEqual([fake, 99, 99, 2, 2]);
+    expect(calls[1]).toEqual([fake, 101, 102, 1, 1]);
+  });
+
+  it('honors an explicitly stale offsets array instead of recomputing it', () => {
+    // Proves drawLayered reads prepared.offsets rather than calling
+    // layerOffsets itself: a deliberately wrong offset here must show up
+    // untouched in the drawImage call.
+    const fake = {} as HTMLCanvasElement;
+    const prepared: PreparedLayered = {
+      sprite,
+      canvases: [[fake], [fake]],
+      offsets: [{ x: 0, y: 0 }, { x: 99, y: 99 }],
+    };
+    const calls: unknown[][] = [];
+    const ctx = {
+      drawImage: (...args: unknown[]) => {
+        calls.push(args);
+      },
+    } as unknown as CanvasRenderingContext2D;
+    drawLayered(ctx, prepared, 100, 100);
+    expect(calls[1]).toEqual([fake, 198, 198, 1, 1]);
+  });
+});
+
 describe('drawLayered visibility', () => {
   it('skips layers with visible: false', () => {
     const grid = parseGrid(['0'], ['#102030']);
@@ -108,7 +164,11 @@ describe('drawLayered visibility', () => {
       ],
     };
     const fake = {} as HTMLCanvasElement;
-    const prepared: PreparedLayered = { sprite, canvases: [[fake], [fake], [fake]] };
+    const prepared: PreparedLayered = {
+      sprite,
+      canvases: [[fake], [fake], [fake]],
+      offsets: layerOffsets(sprite),
+    };
     const calls: unknown[][] = [];
     const ctx = {
       drawImage: (...args: unknown[]) => {
