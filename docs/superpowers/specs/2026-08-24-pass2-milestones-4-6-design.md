@@ -57,14 +57,14 @@ Entity ticks are plain functions over the entity (`tickBullet(e, dt)`, not metho
 - Hold fire (Z/J) → twin streams from the chopper's `podL`/`podR` rocket-pod anchors, converted to world space from the chopper center via `layerOffsets`.
 - Cooldown timer: 8 shots/sec (0.125 s), accumulated in update ticks — no wall-clock time.
 - Bullet: vel (0, −420) px/s, radius 2, despawns when `pos.y < −8` or age > 2 s.
-- Tracer sprite: 2x4 pixels (yellow `f` tip, gunmetal `m` tail) in `game/sprites/shots.ts`.
+- Tracer sprite: 2x4 pixels (yellow `8` tip, gunmetal `m` tail) in `game/sprites/shots.ts`.
 
 ### Firing flavor (muzzle flash, shells, smoke)
 
 The guns should read as guns, not a bullet dispenser:
 
-- **Muzzle flashes** — `MUZZLE_FLASH: SpriteDef` in `game/sprites/shots.ts`: two small frames (~5x5; bright white/yellow star, smaller orange cross) with a `mount` anchor, attached as two extra layers on the chopper at `podL`/`podR`. Requires one small engine extension: an optional `visible?: boolean` on `Layer` (default true) that `drawLayered` respects — flashes flick on for 2 ticks after each shot, alternating frames between shots, then hide. This keeps flash positioning on the existing anchor math instead of hand-computed world offsets.
-- **Ejected shells** — per shot, one brass 1x1 particle per pod (yellow-brown `f`/`d`), ejected sideways-outward with a slight downward screen drift, ~0.4 s life. Cheap, from the particle pool.
+- **Muzzle flashes** — `MUZZLE_FLASH: SpriteDef` in `game/sprites/shots.ts`: two small frames (~5x5; bright white/yellow star, smaller orange cross ('l' white core, '8' yellow, '5' orange)) with a `mount` anchor, attached as two extra layers on the chopper at `podL`/`podR`. Requires one small engine extension: an optional `visible?: boolean` on `Layer` (default true) that `drawLayered` respects — flashes flick on for 2 ticks after each shot, alternating frames between shots, then hide. This keeps flash positioning on the existing anchor math instead of hand-computed world offsets.
+- **Ejected shells** — per shot, one brass 1x1 particle per pod (brass `6`/`v`), ejected sideways-outward with a slight downward screen drift, ~0.4 s life. Cheap, from the particle pool.
 - **Gun smoke** — while firing, every 3rd shot emits a 2x2 gray (`o`/`p`) smoke particle from each pod drifting slowly down-screen (behind the chopper), ~0.8 s life, fading. Explosions (milestone 5) also leave 4 lingering smoke particles (~1.2 s) after the fireball so kills have aftermath.
 
 To support size/color variety, pooled particles carry `size: number` (px) and `color: string` (canvas fill) fields set at spawn; the draw pass is still one `fillRect` per particle. Shell/smoke ejection velocities use the seeded RNG like everything else.
@@ -102,7 +102,7 @@ Collision pass in `entities.ts`: brute-force bullets × enemies. Hit → bullet 
 
 ### Particles
 
-Pool-driven, 1x1–2x2 pixels drawn as fillRect (no sprite rasterization) using the per-particle `size`/`color` fields from milestone 4: radial velocities from the seeded RNG (speed 40–140 px/s), lifetime 0.5 s, color from age (white → orange `e` → gray `o`), slight drag. Explosion = 12 fire particles + 4 lingering smoke (~1.2 s) from boat center; spark = 3 from impact point.
+Pool-driven, 1x1–2x2 pixels drawn as fillRect (no sprite rasterization) using the per-particle `size`/`color` fields from milestone 4: radial velocities from the seeded RNG (speed 40–140 px/s), lifetime 0.5 s, color from age (white → orange `5` → gray `o`), slight drag. Explosion = 12 fire particles + 4 lingering smoke (~1.2 s) from boat center; spark = 3 from impact point.
 
 ## Milestone 6 — blip() SFX
 
