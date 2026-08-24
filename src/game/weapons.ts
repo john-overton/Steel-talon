@@ -62,7 +62,7 @@ function launchRocket(w: World, mounts: Mounts, ws: WeaponState): void {
   b.accel = ROCKET_ACCEL; b.trail = true; b.trailCount = 0;
 }
 
-function fireBarrel(w: World, m: Muzzle, dmg: number): void {
+function fireBullet(w: World, m: Muzzle, dmg: number): void {
   const b = w.bullets.spawn();
   if (b) {
     b.pos.x = m.x; b.pos.y = m.y; b.age = 0;
@@ -71,6 +71,12 @@ function fireBarrel(w: World, m: Muzzle, dmg: number): void {
     b.dmg = dmg;
     b.splash = false; b.homing = false; b.accel = 0; b.trail = false; b.trailCount = 0;
   }
+}
+
+// Bullet + its own shell casing, ejected from the muzzle's fixed `dir`.
+// Used by the miniguns, which have no separate alternating-side casing.
+function fireBarrel(w: World, m: Muzzle, dmg: number): void {
+  fireBullet(w, m, dmg);
   spawnShell(w, m);
 }
 
@@ -97,7 +103,7 @@ export function tickWeapons(
   switch (run.selected) {
     case 1: {
       ws.cooldown = CHAIN_INTERVAL;
-      fireBarrel(w, mounts.nose, CHAIN_DMG);
+      fireBullet(w, mounts.nose, CHAIN_DMG);
       ws.flashTicks = FLASH_TICKS;
       ws.flashFrame ^= 1;
       ws.shotCount++;

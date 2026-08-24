@@ -60,6 +60,16 @@ describe('chain gun (slot 1)', () => {
     expect(b2.trail).toBe(false);
     expect(b2.trailCount).toBe(0);
   });
+
+  it('ejects exactly one shell casing per shot (no double-spawn)', () => {
+    const w = createWorld(mulberry32(1));
+    const r = createRun();
+    const ws = createWeaponState();
+    const m = mounts();
+    // shotCount goes to 1 after this shot, so no smoke tick fires alongside it.
+    tickWeapons(w, r, ws, m, true, DT);
+    expect(w.particles.countAlive()).toBe(1);
+  });
 });
 
 describe('miniguns (slot 2)', () => {
