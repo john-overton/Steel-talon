@@ -33,12 +33,12 @@ Deliberate deviation from the engine spec: the spec's snippet uses `OffscreenCan
 
 `src/engine/sprite.ts` splits parsing from rendering:
 
-- `parseGrid(rows, palette)` is pure: it turns an array of equal-length strings into a `PixelGrid { width, height, rgba }`. Each character is a base-32 digit (`0`-`9`, `a`-`v`) indexing `palette`, or `.` for transparent. `rgba` is typed `Uint8ClampedArray<ArrayBuffer>` (not `SharedArrayBuffer`) so it satisfies the `ImageData` constructor's type under TypeScript 5.7+.
+- `parseGrid(rows, palette)` is pure: it turns an array of equal-length strings into a `PixelGrid { width, height, rgba }`. Each character is a base-32 digit (`0`-`9`, `a`-`v`) indexing `palette`, or `.` for transparent. `rgba` is typed `Uint8ClampedArray<ArrayBuffer>` (not `SharedArrayBuffer`) so it satisfies the `ImageData` constructor's type under TypeScript 5.9 (5.7+ behavior).
 - `rasterize(grid)` is browser-only: it paints a `PixelGrid` onto a small offscreen `<canvas>` via `putImageData`/`ImageData`, once at boot, and returns the canvas for repeated `drawImage` calls.
 
 `src/game/palette.ts` defines `PALETTE`: DawnBringer 32, 32 hex colors, indexed 0-9 then a-v in the sprite strings.
 
-`src/game/sprites/player.ts` defines the chopper as two 17x14 frames (`BODY_A`, `BODY_B`, identical except the rotor blur row) parsed with `parseGrid` into `CHOPPER_FRAMES: PixelGrid[]`.
+`src/game/sprites/player.ts` defines the chopper as two 16x14 frames (`BODY_A`, `BODY_B`, identical except the rotor blur row) parsed with `parseGrid` into `CHOPPER_FRAMES: PixelGrid[]`.
 
 ## Game wiring
 
