@@ -27,6 +27,7 @@ import {
 } from '../entities';
 import { createHud, formatScore } from '../hud';
 import { PALETTE } from '../palette';
+import { createPauseMenu, pauseMenuMoved, tickPauseMenu, type PauseEdges } from '../pausemenu';
 import {
   addScore,
   armMissiles,
@@ -70,9 +71,10 @@ export interface TopDeps {
   water: Tilemap;
   makeRng(): () => number;
   onExit(score: number, salvage: number): void;
+  onAbandon(): void;
 }
 
-export type Overlay = 'playing' | 'complete' | 'gameover';
+export type Overlay = 'playing' | 'paused' | 'complete' | 'gameover';
 
 const SPEED = 360;
 const SQRT1_2 = Math.SQRT1_2;
@@ -80,6 +82,7 @@ const PLAYER_RADIUS = 20;
 const CHOPPER_HALF = 32; // CHOPPER_BODY is 64x64, scale 1
 const OUTRO_TICKS = 300; // 5s at 60Hz
 const TALLY_TICKS = 120; // 2s roll-up
+const PAUSE_ITEMS = ['CONTINUE', 'ABANDON RUN'] as const;
 
 interface PreparedAssets {
   chopper: PreparedLayered;
@@ -97,7 +100,7 @@ interface PreparedAssets {
 // The extra accessor is a minimal read-only test seam (playerPos itself
 // is a closure-private, reused object — never allocated per tick, never
 // exposed for mutation) so tests can assert the chopper rides the scroll.
-export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number } {
+export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number; debugOverlay(): Overlay } {
   // Reused closure-level objects — no per-tick allocation.
   const playerPos = { x: 0, y: 0 };
   const MOUNTS: Mounts = {
@@ -107,7 +110,13 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
     pylonL: { x: 0, y: 0, dir: -1 },
     pylonR: { x: 0, y: 0, dir: 1 },
   };
-  const prevInput = { weapon1: false, weapon2: false, weapon3: false, weapon4: false, special: false };
+  const prevInput = {
+    weapon1: false, weapon2: false, weapon3: false, weapon4: false, special: false,
+    pause: false, up: false, down: false, start: false,
+  };
+  const pauseMenu = createPauseMenu();
+  // Reused every paused tick — no per-tick allocation.
+  const pauseEdges: PauseEdges = { up: false, down: false, confirm: false, pause: false };
 
   // `state` holds everything reassigned by enter(); callbacks close over
   // this single mutable object so a fresh enter() never strands a stale
@@ -190,6 +199,9 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
     debugPlayerY() {
       return playerPos.y;
     },
+    debugOverlay() {
+      return state.overlay;
+    },
     enter() {
       state.rng = deps.makeRng();
       state.world = createWorld(state.rng);
@@ -212,6 +224,11 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
       prevInput.weapon3 = false;
       prevInput.weapon4 = false;
       prevInput.special = false;
+      prevInput.pause = false;
+      prevInput.up = false;
+      prevInput.down = false;
+      prevInput.start = false;
+      pauseMenu.cursor = 0;
 
       // Reset layer visibility/frame state the scene owns (prepared
       // sprites, once built, are reused across runs).
@@ -230,7 +247,13 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
       const camera = deps.camera;
       const input = deps.input.state;
 
-      if (state.overlay === 'playing') {
+      const edgePause = input.pause && !prevInput.pause;
+
+      if (state.overlay === 'playing' && edgePause) {
+        state.overlay = 'paused';
+        pauseMenu.cursor = 0;
+        deps.audio.blip(SFX.select);
+      } else if (state.overlay === 'playing') {
         state.ticks++;
         tickRun(run, dt);
 
@@ -278,11 +301,6 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
           cycleWeapon(run);
           deps.audio.blip(SFX.select);
         }
-        prevInput.weapon1 = input.weapon1;
-        prevInput.weapon2 = input.weapon2;
-        prevInput.weapon3 = input.weapon3;
-        prevInput.weapon4 = input.weapon4;
-        prevInput.special = input.special;
 
         // Update mounts from player position + chopper anchors.
         const a = CHOPPER_BODY.anchors;
@@ -356,6 +374,22 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
           state.overlayTicks = 0;
           deps.sequencer.stop();
         }
+      } else if (state.overlay === 'paused') {
+        // Paused: nothing world-side advances (no ticks, no scroll, no RNG
+        // consultation) — only the menu itself reacts to input.
+        pauseEdges.up = input.up && !prevInput.up;
+        pauseEdges.down = input.down && !prevInput.down;
+        pauseEdges.confirm = input.start && !prevInput.start;
+        pauseEdges.pause = edgePause;
+        const cursorBefore = pauseMenu.cursor;
+        const action = tickPauseMenu(pauseMenu, pauseEdges);
+        if (pauseMenuMoved(cursorBefore, pauseMenu.cursor)) deps.audio.blip(SFX.select);
+        if (action === 'continue') {
+          state.overlay = 'playing';
+        } else if (action === 'abandon') {
+          deps.sequencer.stop();
+          deps.onAbandon();
+        }
       } else {
         state.overlayTicks++;
         tickParticles(world, dt);
@@ -368,6 +402,18 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
           deps.onExit(run.score, run.salvage);
         }
       }
+
+      // Copy current input into prevInput for edge detection next tick —
+      // every overlay state, so no stale edge fires after a transition.
+      prevInput.weapon1 = input.weapon1;
+      prevInput.weapon2 = input.weapon2;
+      prevInput.weapon3 = input.weapon3;
+      prevInput.weapon4 = input.weapon4;
+      prevInput.special = input.special;
+      prevInput.pause = input.pause;
+      prevInput.up = input.up;
+      prevInput.down = input.down;
+      prevInput.start = input.start;
     },
 
     draw(ctx) {
@@ -463,6 +509,28 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number 
           ctx.fillStyle = PALETTE[5];
           ctx.fillText('GOOD SHOOTING, TEX.', WIDTH / 2, HEIGHT / 2 + 26);
         }
+        ctx.textAlign = 'left';
+      }
+
+      if (overlay === 'paused') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        ctx.textAlign = 'center';
+        ctx.font = '24px monospace';
+        ctx.fillStyle = PALETTE[21];
+        ctx.fillText('P A U S E D', WIDTH / 2, HEIGHT / 2 - 48);
+        ctx.font = '16px monospace';
+        for (let i = 0; i < PAUSE_ITEMS.length; i++) {
+          ctx.fillStyle = pauseMenu.cursor === i ? PALETTE[8] : PALETTE[22];
+          ctx.fillText(
+            (pauseMenu.cursor === i ? '> ' : '  ') + PAUSE_ITEMS[i],
+            WIDTH / 2,
+            HEIGHT / 2 - 8 + i * 24,
+          );
+        }
+        ctx.font = '12px monospace';
+        ctx.fillStyle = PALETTE[27];
+        ctx.fillText('ABANDONING FORFEITS YOUR CREDIT', WIDTH / 2, HEIGHT / 2 + 56);
         ctx.textAlign = 'left';
       }
     },

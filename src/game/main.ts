@@ -50,6 +50,12 @@ export function start(seed: number): void {
       gameOverCb(score, salvage);
       scenes.switchTo(title);
     },
+    // Stopgap wiring: abandoning a run bails to the title screen with no
+    // score submission (no gameOverCb call — a forfeited run banks nothing).
+    // Task 12 adds the title screen's forfeit messaging on top of this.
+    onAbandon: () => {
+      scenes.switchTo(title);
+    },
   });
   const title = createTitleScene({
     input, audio, sequencer, water, seed,

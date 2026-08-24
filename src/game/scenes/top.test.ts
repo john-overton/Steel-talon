@@ -11,7 +11,17 @@ function makeScene() {
   const input = createInput();
   const camera = { x: 0, y: 0 };
   const exits: Array<[number, number]> = [];
-  const seq: Sequencer = { play(_s: Song) {}, stop() {}, playing: () => false };
+  const abandons: number[] = [];
+  const stops: number[] = [];
+  let stopCount = 0;
+  const seq: Sequencer = {
+    play(_s: Song) {},
+    stop() {
+      stopCount++;
+      stops.push(stopCount);
+    },
+    playing: () => false,
+  };
   const scene = createTopScene({
     input,
     audio: { unlock() {}, blip() {}, noise() {}, context: () => null },
@@ -20,8 +30,9 @@ function makeScene() {
     water: { tileSize: 16, tiles: [], pickTile: () => 0 },
     makeRng: () => mulberry32(0xc0ffee),
     onExit: (s, sal) => exits.push([s, sal]),
+    onAbandon: () => abandons.push(1),
   });
-  return { input, camera, scene, exits };
+  return { input, camera, scene, exits, abandons, stops };
 }
 
 describe('top scene', () => {
@@ -69,5 +80,63 @@ describe('top scene', () => {
     expect(camera.y).toBe(LEVEL_LENGTH - 480);
     for (let i = 0; i < 600; i++) scene.update(DT);
     expect(camera.y).toBe(midY); // deterministic replay
+  });
+});
+
+describe('pause', () => {
+  it('Escape pauses: world state freezes, resume continues exactly', () => {
+    const { input, scene } = makeScene();
+    scene.enter();
+    for (let i = 0; i < 60; i++) scene.update(DT);
+    const yBefore = scene.debugPlayerY();
+    input.onKey('Escape', true);
+    scene.update(DT);
+    input.onKey('Escape', false);
+    // 120 paused ticks: nothing moves
+    for (let i = 0; i < 120; i++) scene.update(DT);
+    expect(scene.debugPlayerY()).toBe(yBefore);
+    // Escape again resumes; scroll rides once more
+    input.onKey('Escape', true);
+    scene.update(DT);
+    input.onKey('Escape', false);
+    for (let i = 0; i < 60; i++) scene.update(DT);
+    expect(scene.debugPlayerY()).not.toBe(yBefore);
+  });
+
+  it('abandon calls onAbandon, never onExit, and stops music', () => {
+    const { input, scene, exits, abandons, stops } = makeScene();
+    scene.enter();
+    for (let i = 0; i < 60; i++) scene.update(DT);
+    // Pause.
+    input.onKey('Escape', true);
+    scene.update(DT);
+    input.onKey('Escape', false);
+    // Cursor down to ABANDON RUN.
+    input.onKey('ArrowDown', true);
+    scene.update(DT);
+    input.onKey('ArrowDown', false);
+    scene.update(DT);
+    // Confirm.
+    input.onKey('Enter', true);
+    scene.update(DT);
+    input.onKey('Enter', false);
+
+    expect(abandons).toHaveLength(1);
+    expect(exits).toHaveLength(0);
+    expect(stops.length).toBeGreaterThan(0);
+  });
+
+  it('Escape during gameover overlay does nothing', () => {
+    const { input, scene } = makeScene();
+    scene.enter();
+    // No input at all: the seeded script (0xc0ffee) reliably kills the
+    // stationary chopper well within this bound.
+    for (let i = 0; i < 8000 && scene.debugOverlay() !== 'gameover'; i++) scene.update(DT);
+    expect(scene.debugOverlay()).toBe('gameover');
+
+    input.onKey('Escape', true);
+    scene.update(DT);
+    input.onKey('Escape', false);
+    expect(scene.debugOverlay()).toBe('gameover');
   });
 });
