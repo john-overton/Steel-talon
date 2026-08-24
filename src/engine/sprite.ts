@@ -30,6 +30,76 @@ export function parseGrid(rows: string[], palette: readonly string[]): PixelGrid
   return { width, height, rgba };
 }
 
+// Layered sprites: a base layer plus attachments (rotors, turrets, pylon
+// weapons) positioned by mapping a named anchor on the attachment onto a
+// named anchor on the base. Layers draw in array order (last on top) and
+// animate independently via their own `frame` index; adding or removing a
+// layer at runtime (e.g. a weapon pickup) is a plain array edit followed by
+// prepareLayered().
+
+export interface SpriteDef {
+  frames: PixelGrid[];
+  anchors: Record<string, readonly [number, number]>;
+}
+
+export interface Layer {
+  def: SpriteDef;
+  frame: number;
+  attach?: { to: string; by: string }; // base anchor name / own anchor name
+}
+
+export interface LayeredSprite {
+  layers: Layer[]; // layers[0] is the base
+}
+
+// Pure: pixel offset of each layer relative to the base's top-left corner.
+export function layerOffsets(sprite: LayeredSprite): Array<{ x: number; y: number }> {
+  const base = sprite.layers[0];
+  return sprite.layers.map((layer, i) => {
+    if (i === 0 || !layer.attach) return { x: 0, y: 0 };
+    const to = base.def.anchors[layer.attach.to];
+    const by = layer.def.anchors[layer.attach.by];
+    if (!to) throw new Error(`base has no anchor '${layer.attach.to}'`);
+    if (!by) throw new Error(`layer has no anchor '${layer.attach.by}'`);
+    return { x: to[0] - by[0], y: to[1] - by[1] };
+  });
+}
+
+export interface PreparedLayered {
+  sprite: LayeredSprite;
+  canvases: HTMLCanvasElement[][]; // [layer][frame]
+}
+
+export function prepareLayered(sprite: LayeredSprite): PreparedLayered {
+  return { sprite, canvases: sprite.layers.map((l) => l.def.frames.map(rasterize)) };
+}
+
+// Draws all layers centered on (cx, cy) using the base layer's dimensions.
+export function drawLayered(
+  ctx: CanvasRenderingContext2D,
+  prepared: PreparedLayered,
+  cx: number,
+  cy: number,
+  scale = 1,
+): void {
+  const { sprite, canvases } = prepared;
+  const baseGrid = sprite.layers[0]?.def.frames[0];
+  if (!baseGrid) return;
+  const offsets = layerOffsets(sprite);
+  const ox = cx - (baseGrid.width * scale) / 2;
+  const oy = cy - (baseGrid.height * scale) / 2;
+  sprite.layers.forEach((layer, i) => {
+    const grid = layer.def.frames[layer.frame];
+    ctx.drawImage(
+      canvases[i][layer.frame],
+      Math.round(ox + offsets[i].x * scale),
+      Math.round(oy + offsets[i].y * scale),
+      grid.width * scale,
+      grid.height * scale,
+    );
+  });
+}
+
 export function rasterize(grid: PixelGrid): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = grid.width;

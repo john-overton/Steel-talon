@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGrid } from './sprite';
+import { layerOffsets, parseGrid, type LayeredSprite, type SpriteDef } from './sprite';
 
 const PAL = ['#000000', '#ff0000', '#00ff00'] as const;
 
@@ -29,5 +29,62 @@ describe('parseGrid', () => {
 
   it('throws on ragged rows', () => {
     expect(() => parseGrid(['01', '012'], PAL)).toThrow(/row/i);
+  });
+});
+
+describe('layerOffsets', () => {
+  const base: SpriteDef = {
+    frames: [parseGrid(['00', '00'], PAL)],
+    anchors: { mast: [5, 6], pylon: [1, 2] },
+  };
+  const rotor: SpriteDef = {
+    frames: [parseGrid(['1'], PAL)],
+    anchors: { hub: [3, 3] },
+  };
+
+  it('returns {0,0} for the base layer', () => {
+    const sprite: LayeredSprite = { layers: [{ def: base, frame: 0 }] };
+    expect(layerOffsets(sprite)).toEqual([{ x: 0, y: 0 }]);
+  });
+
+  it('positions an attached layer by mapping its anchor onto the base anchor', () => {
+    const sprite: LayeredSprite = {
+      layers: [
+        { def: base, frame: 0 },
+        { def: rotor, frame: 0, attach: { to: 'mast', by: 'hub' } },
+      ],
+    };
+    expect(layerOffsets(sprite)).toEqual([
+      { x: 0, y: 0 },
+      { x: 2, y: 3 }, // mast [5,6] - hub [3,3]
+    ]);
+  });
+
+  it('defaults an unattached extra layer to {0,0}', () => {
+    const sprite: LayeredSprite = {
+      layers: [{ def: base, frame: 0 }, { def: rotor, frame: 0 }],
+    };
+    expect(layerOffsets(sprite)[1]).toEqual({ x: 0, y: 0 });
+  });
+
+  it('throws when an anchor name is missing on either side', () => {
+    const bad1: LayeredSprite = {
+      layers: [
+        { def: base, frame: 0 },
+        { def: rotor, frame: 0, attach: { to: 'nose', by: 'hub' } },
+      ],
+    };
+    const bad2: LayeredSprite = {
+      layers: [
+        { def: base, frame: 0 },
+        { def: rotor, frame: 0, attach: { to: 'mast', by: 'tip' } },
+      ],
+    };
+    expect(() => layerOffsets(bad1)).toThrow(/anchor/i);
+    expect(() => layerOffsets(bad2)).toThrow(/anchor/i);
+  });
+
+  it('returns an empty list for an empty layer stack', () => {
+    expect(layerOffsets({ layers: [] })).toEqual([]);
   });
 });

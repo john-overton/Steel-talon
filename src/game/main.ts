@@ -2,8 +2,8 @@
 import { createInput } from '../engine/input';
 import { createLoop } from '../engine/loop';
 import { createRenderer, HEIGHT, WIDTH } from '../engine/renderer';
-import { rasterize } from '../engine/sprite';
-import { CHOPPER_FRAMES } from './sprites/player';
+import { drawLayered, prepareLayered } from '../engine/sprite';
+import { CHOPPER_BODY, createChopper } from './sprites/player';
 
 const screen = document.getElementById('screen') as HTMLCanvasElement;
 const renderer = createRenderer(screen);
@@ -14,13 +14,15 @@ const input = createInput();
 input.attach(window);
 
 const SPEED = 180; // pixels per second
-const CHOPPER_SCALE = 1; // sprite is natively 32x32; bump for an even bigger chopper
-const chopperCanvases = CHOPPER_FRAMES.map(rasterize);
+const CHOPPER_SCALE = 1; // body is natively 32x32; bump for an even bigger chopper
+const chopperSprite = createChopper();
+const chopperPrepared = prepareLayered(chopperSprite);
+const rotorLayer = chopperSprite.layers[chopperSprite.layers.length - 1];
 const chopper = {
   x: WIDTH / 2,
   y: HEIGHT / 2,
-  w: CHOPPER_FRAMES[0].width * CHOPPER_SCALE,
-  h: CHOPPER_FRAMES[0].height * CHOPPER_SCALE,
+  w: CHOPPER_BODY.frames[0].width * CHOPPER_SCALE,
+  h: CHOPPER_BODY.frames[0].height * CHOPPER_SCALE,
 };
 let ticks = 0;
 
@@ -42,14 +44,8 @@ function render(): void {
   const { ctx } = renderer;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  const frameIndex = Math.floor(ticks / 4) % chopperCanvases.length;
-  ctx.drawImage(
-    chopperCanvases[frameIndex],
-    Math.round(chopper.x - chopper.w / 2),
-    Math.round(chopper.y - chopper.h / 2),
-    chopper.w,
-    chopper.h,
-  );
+  rotorLayer.frame = Math.floor(ticks / 4) % rotorLayer.def.frames.length;
+  drawLayered(ctx, chopperPrepared, chopper.x, chopper.y, CHOPPER_SCALE);
   ctx.fillStyle = '#9badb7';
   ctx.font = '10px monospace';
   ctx.fillText(`FPS ${fps}`, 4, 12);
