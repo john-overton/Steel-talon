@@ -1,6 +1,6 @@
 # Steel Talon Pass 2 — Milestones 4–6 (Combat) Design
 
-Scope: engine-spec build order milestones 4 (bullets + pooling), 5 (drone boat + collision + particles), 6 (blip() SFX). Branch: `pass/milestones-4-6`. Ends with: hold fire, twin tracer streams from the rocket pods, drone boats drifting down, hits and explosions with sound.
+Scope: engine-spec build order milestones 4 (bullets + pooling), 5 (drone boat + collision + particles), 6 (blip() SFX). Branch: `pass/milestones-4-6`. Ends with: hold fire, twin tracer streams from the rocket pods with muzzle flashes, ejected shells, and gun smoke; drone boats drifting down; hits and explosions with lingering smoke and sound.
 
 Out of scope (later milestones): enemy fire and player HP (8), scrolling water/camera and `waves.ts` (7), HUD (8), music/sequencer and title scene (9). Enemies are moving targets this pass — Level 1 TOP is a training lane per the beat sheet, and there is no player HP to damage yet.
 
@@ -59,6 +59,16 @@ Entity ticks are plain functions over the entity (`tickBullet(e, dt)`, not metho
 - Bullet: vel (0, −420) px/s, radius 2, despawns when `pos.y < −8` or age > 2 s.
 - Tracer sprite: 2x4 pixels (yellow `f` tip, gunmetal `m` tail) in `game/sprites/shots.ts`.
 
+### Firing flavor (muzzle flash, shells, smoke)
+
+The guns should read as guns, not a bullet dispenser:
+
+- **Muzzle flashes** — `MUZZLE_FLASH: SpriteDef` in `game/sprites/shots.ts`: two small frames (~5x5; bright white/yellow star, smaller orange cross) with a `mount` anchor, attached as two extra layers on the chopper at `podL`/`podR`. Requires one small engine extension: an optional `visible?: boolean` on `Layer` (default true) that `drawLayered` respects — flashes flick on for 2 ticks after each shot, alternating frames between shots, then hide. This keeps flash positioning on the existing anchor math instead of hand-computed world offsets.
+- **Ejected shells** — per shot, one brass 1x1 particle per pod (yellow-brown `f`/`d`), ejected sideways-outward with a slight downward screen drift, ~0.4 s life. Cheap, from the particle pool.
+- **Gun smoke** — while firing, every 3rd shot emits a 2x2 gray (`o`/`p`) smoke particle from each pod drifting slowly down-screen (behind the chopper), ~0.8 s life, fading. Explosions (milestone 5) also leave 4 lingering smoke particles (~1.2 s) after the fireball so kills have aftermath.
+
+To support size/color variety, pooled particles carry `size: number` (px) and `color: string` (canvas fill) fields set at spawn; the draw pass is still one `fillRect` per particle. Shell/smoke ejection velocities use the seeded RNG like everything else.
+
 ### Deferred minors folded in
 
 - Diagonal movement normalized (× 1/√2 when two axes held).
@@ -92,7 +102,7 @@ Collision pass in `entities.ts`: brute-force bullets × enemies. Hit → bullet 
 
 ### Particles
 
-Pool-driven, 1x1–2x2 pixels drawn as fillRect (no sprite rasterization): radial velocities from the seeded RNG (speed 40–140 px/s), lifetime 0.5 s, color from age (white → orange `e` → gray `o`), slight drag. Explosion = 12 particles from boat center; spark = 3 from impact point.
+Pool-driven, 1x1–2x2 pixels drawn as fillRect (no sprite rasterization) using the per-particle `size`/`color` fields from milestone 4: radial velocities from the seeded RNG (speed 40–140 px/s), lifetime 0.5 s, color from age (white → orange `e` → gray `o`), slight drag. Explosion = 12 fire particles + 4 lingering smoke (~1.2 s) from boat center; spark = 3 from impact point.
 
 ## Milestone 6 — blip() SFX
 
@@ -132,7 +142,7 @@ All gameplay randomness (spawn timing, spawn x, particle velocities) goes throug
 
 ## Testing
 
-Headless (Vitest, fixed seeds, simulated ticks): pool spawn/reuse/exhaustion/reset; mulberry32 sequences; circlesOverlap boundaries; bullet tick/despawn; fire-rate cooldown counts over N ticks; boat spawn positions for a fixed seed; hit → hp decrement → death → particle count; blip envelope math; boat sprite anchors/layers (same shape as player.test.ts). Canvas/Web Audio boundary code verified in the dev server (5173) by the user.
+Headless (Vitest, fixed seeds, simulated ticks): pool spawn/reuse/exhaustion/reset; mulberry32 sequences; circlesOverlap boundaries; bullet tick/despawn; fire-rate cooldown counts over N ticks; boat spawn positions for a fixed seed; hit → hp decrement → death → particle count; blip envelope math; boat sprite anchors/layers (same shape as player.test.ts); `Layer.visible` respected by draw ordering logic and muzzle-flash timer (flash on for exactly 2 ticks per shot); shell/smoke particle emission counts per shot. Canvas/Web Audio boundary code verified in the dev server (5173) by the user.
 
 ## Process
 
