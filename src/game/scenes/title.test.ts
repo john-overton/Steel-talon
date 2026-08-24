@@ -69,4 +69,27 @@ describe('title scene flow', () => {
     scene.update(1 / 60);
     expect(seq.played).toHaveLength(0);
   });
+
+  it('notifyForfeit shows the forfeit line for 240 ticks after enter', () => {
+    const { scene } = makeScene();
+    scene.notifyForfeit();
+    scene.enter();
+    expect(scene.debugForfeitTicks()).toBe(240);
+    for (let i = 0; i < 240; i++) scene.update(1 / 60);
+    expect(scene.debugForfeitTicks()).toBe(0);
+  });
+
+  it('enter without notifyForfeit shows no forfeit line', () => {
+    const { scene } = makeScene();
+    scene.enter();
+    expect(scene.debugForfeitTicks()).toBe(0);
+  });
+
+  it('forfeit flag is consumed — a second enter does not re-show it', () => {
+    const { scene } = makeScene();
+    scene.notifyForfeit();
+    scene.enter();
+    scene.enter();
+    expect(scene.debugForfeitTicks()).toBe(0);
+  });
 });

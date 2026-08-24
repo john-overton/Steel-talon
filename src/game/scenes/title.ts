@@ -20,16 +20,23 @@ export interface TitleDeps {
   onStart(): void;
 }
 
-export function createTitleScene(deps: TitleDeps): Scene {
+const FORFEIT_TICKS = 240; // 4 s at 60 Hz
+const FORFEIT_BLINK = 20;  // ticks per blink phase
+
+export function createTitleScene(deps: TitleDeps): Scene & { notifyForfeit(): void; debugForfeitTicks(): number } {
   let ticks = 0;
   let started = false;
   let bgY = 0;
+  let forfeitPending = false;
+  let forfeitTicks = 0;
 
   return {
     enter() {
       ticks = 0;
       started = false;
       bgY = 0;
+      forfeitTicks = forfeitPending ? FORFEIT_TICKS : 0;
+      forfeitPending = false;
       // Drain any stale anyKey latch (e.g. the key that ended the previous
       // run) so the first update() here doesn't auto-advance the flow.
       deps.input.consumeAnyKey();
@@ -38,6 +45,7 @@ export function createTitleScene(deps: TitleDeps): Scene {
     update(dt) {
       ticks++;
       bgY += 20 * dt;
+      if (forfeitTicks > 0) forfeitTicks--;
       if (deps.input.consumeAnyKey()) {
         if (!started) {
           started = true;
@@ -72,11 +80,23 @@ export function createTitleScene(deps: TitleDeps): Scene {
         ctx.fillText('INSERT COIN — PRESS ANY KEY', WIDTH / 2, 300);
       }
 
+      if (forfeitTicks > 0 && Math.floor(forfeitTicks / FORFEIT_BLINK) % 2 === 0) {
+        ctx.font = '14px monospace';
+        ctx.fillStyle = PALETTE[27];
+        ctx.fillText('CREDIT FORFEITED — GOOD PILOTS FINISH THE MISSION.', WIDTH / 2, HEIGHT - 96);
+      }
+
       ctx.font = '10px monospace';
       ctx.fillStyle = PALETTE[22];
       ctx.fillText(`SEED ${deps.seed.toString(16).toUpperCase()}`, WIDTH / 2, 460);
 
       ctx.textAlign = 'left';
+    },
+    notifyForfeit() {
+      forfeitPending = true;
+    },
+    debugForfeitTicks() {
+      return forfeitTicks;
     },
   };
 }

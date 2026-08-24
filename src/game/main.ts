@@ -50,10 +50,11 @@ export function start(seed: number): void {
       gameOverCb(score, salvage);
       scenes.switchTo(title);
     },
-    // Stopgap wiring: abandoning a run bails to the title screen with no
-    // score submission (no gameOverCb call — a forfeited run banks nothing).
-    // Task 12 adds the title screen's forfeit messaging on top of this.
+    // Abandoning a run bails to the title screen with no score submission
+    // (no gameOverCb call — a forfeited run banks nothing) and flashes the
+    // forfeit message once the title re-enters.
     onAbandon: () => {
+      title.notifyForfeit();
       scenes.switchTo(title);
     },
   });
