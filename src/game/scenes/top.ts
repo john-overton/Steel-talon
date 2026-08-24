@@ -51,7 +51,7 @@ import {
 import { CHOPPER_BODY, LAYER, createChopper } from '../sprites/player';
 import { createBoat } from '../sprites/boat';
 import { createDelta } from '../sprites/delta';
-import { ROCKET, TRACER } from '../sprites/shots';
+import { ENEMY_SHOT, ENEMY_SHOT_FRAME_TICKS, ROCKET, TRACER } from '../sprites/shots';
 import {
   CRATE,
   MINIGUN_PICKUP,
@@ -90,6 +90,7 @@ interface PreparedAssets {
   delta: PreparedLayered;
   tracer: HTMLCanvasElement;
   rocket: HTMLCanvasElement;
+  enemyShot: HTMLCanvasElement[];
   minigunPickup: HTMLCanvasElement[];
   rocketPickup: HTMLCanvasElement[];
   crate: HTMLCanvasElement;
@@ -179,6 +180,7 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
         delta: prepareLayered(createDelta()),
         tracer: rasterize(TRACER.frames[0]),
         rocket: rasterize(ROCKET.frames[0]),
+        enemyShot: ENEMY_SHOT.frames.map(rasterize),
         minigunPickup: MINIGUN_PICKUP.frames.map(rasterize),
         rocketPickup: ROCKET_PICKUP.frames.map(rasterize),
         crate: rasterize(CRATE.frames[0]),
@@ -355,7 +357,7 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
           }
         }
 
-        collidePickupsPlayer(world, playerPos, 12, onPickupCollect);
+        collidePickupsPlayer(world, playerPos, 24, onPickupCollect);
 
         // Chopper layer state.
         chopper.layers[LAYER.FLASH_L].visible = ws.flashTicks > 0 && run.selected === 2;
@@ -462,10 +464,14 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
       });
 
       // Enemy bullets.
-      ctx.fillStyle = PALETTE[5];
-      world.enemyBullets.forEachAlive((b) => {
-        ctx.fillRect(Math.round(b.pos.x - camera.x - 1), Math.round(b.pos.y - camera.y - 1), 2, 2);
-      });
+      {
+        const shotCanvas = assets.enemyShot[Math.floor(ticks / ENEMY_SHOT_FRAME_TICKS) % 2];
+        world.enemyBullets.forEachAlive((b) => {
+          const x = b.pos.x - camera.x;
+          const y = b.pos.y - camera.y;
+          ctx.drawImage(shotCanvas, Math.round(x - shotCanvas.width / 2), Math.round(y - shotCanvas.height / 2));
+        });
+      }
 
       // Player bullets.
       world.bullets.forEachAlive((b) => {

@@ -38,8 +38,8 @@ export function generateWaveScript(rng: () => number, levelLength: number): Spaw
   for (let t = 40; t < 80; t += 6) {
     const jt = jitter(t, 1);
     const x = laneX(rng);
-    events.push({ atY: timeToY(jt), kind: 'boat', x: clampX(x - 80) });
-    events.push({ atY: timeToY(jt + 0.4), kind: 'boat', x: clampX(x + 80) });
+    events.push({ atY: timeToY(jt), kind: 'boat', x: clampX(x - 160) });
+    events.push({ atY: timeToY(jt + 0.4), kind: 'boat', x: clampX(x + 160) });
   }
   events.push({ atY: timeToY(jitter(55, 3)), kind: 'missileCrate', x: clampX(laneX(rng)) });
   events.push({ atY: timeToY(jitter(70, 3)), kind: 'missileCrate', x: clampX(laneX(rng)) });
@@ -58,9 +58,9 @@ export function generateWaveScript(rng: () => number, levelLength: number): Spaw
   for (let t = 120; t < 170; t += 10) {
     const jt = jitter(t, 1);
     const x = laneX(rng);
-    events.push({ atY: timeToY(jt), kind: 'boat', x: clampX(x - 80) });
+    events.push({ atY: timeToY(jt), kind: 'boat', x: clampX(x - 160) });
     events.push({ atY: timeToY(jt + 0.3), kind: 'boat', x: clampX(x) });
-    events.push({ atY: timeToY(jt + 0.6), kind: 'boat', x: clampX(x + 80) });
+    events.push({ atY: timeToY(jt + 0.6), kind: 'boat', x: clampX(x + 160) });
   }
   for (let t = 120; t < 170; t += 9) {
     const jt = jitter(t, 1.5);
