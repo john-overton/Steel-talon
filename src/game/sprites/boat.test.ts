@@ -3,10 +3,22 @@ import { layerOffsets } from '../../engine/sprite';
 import { BOAT_HULL, BOAT_TURRET, createBoat } from './boat';
 
 describe('drone boat sprite', () => {
-  it('hull is a single 24x16 frame', () => {
+  it('hull is a single 48x32 frame', () => {
     expect(BOAT_HULL.frames).toHaveLength(1);
-    expect(BOAT_HULL.frames[0].width).toBe(24);
-    expect(BOAT_HULL.frames[0].height).toBe(16);
+    expect(BOAT_HULL.frames[0].width).toBe(48);
+    expect(BOAT_HULL.frames[0].height).toBe(32);
+  });
+
+  it('turret is a single 12x12 frame mounted at its rotation centre', () => {
+    expect(BOAT_TURRET.frames).toHaveLength(1);
+    expect(BOAT_TURRET.frames[0].width).toBe(12);
+    expect(BOAT_TURRET.frames[0].height).toBe(12);
+    expect(BOAT_TURRET.anchors.mount).toEqual([6, 4]);
+  });
+
+  it('turret anchor sits on the hull centerline', () => {
+    expect(BOAT_HULL.anchors.turret[0]).toBeGreaterThanOrEqual(22);
+    expect(BOAT_HULL.anchors.turret[0]).toBeLessThanOrEqual(25);
   });
 
   it('every anchor lies inside its sprite bounds', () => {
@@ -34,7 +46,7 @@ describe('drone boat sprite', () => {
     const { width, height } = BOAT_TURRET.frames[0];
     expect(offsets[1].x).toBeGreaterThanOrEqual(0);
     expect(offsets[1].y).toBeGreaterThanOrEqual(0);
-    expect(offsets[1].x + width).toBeLessThanOrEqual(24);
-    expect(offsets[1].y + height).toBeLessThanOrEqual(16);
+    expect(offsets[1].x + width).toBeLessThanOrEqual(48);
+    expect(offsets[1].y + height).toBeLessThanOrEqual(32);
   });
 });
