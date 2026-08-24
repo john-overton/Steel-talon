@@ -1,7 +1,9 @@
-// Milestone 2: fixed-timestep loop moving a test rect via keyboard.
+// Milestone 3: fixed-timestep loop moving the player chopper via keyboard.
 import { createInput } from '../engine/input';
 import { createLoop } from '../engine/loop';
 import { createRenderer, HEIGHT, WIDTH } from '../engine/renderer';
+import { rasterize } from '../engine/sprite';
+import { CHOPPER_FRAMES } from './sprites/player';
 
 const screen = document.getElementById('screen') as HTMLCanvasElement;
 const renderer = createRenderer(screen);
@@ -11,16 +13,24 @@ window.addEventListener('resize', () => renderer.resize());
 const input = createInput();
 input.attach(window);
 
-const RECT_SPEED = 180; // pixels per second
-const rect = { x: WIDTH / 2 - 8, y: HEIGHT / 2 - 8, w: 16, h: 16 };
+const SPEED = 180; // pixels per second
+const chopperCanvases = CHOPPER_FRAMES.map(rasterize);
+const chopper = {
+  x: WIDTH / 2,
+  y: HEIGHT / 2,
+  w: CHOPPER_FRAMES[0].width,
+  h: CHOPPER_FRAMES[0].height,
+};
+let ticks = 0;
 
 function update(dt: number): void {
-  if (input.state.up) rect.y -= RECT_SPEED * dt;
-  if (input.state.down) rect.y += RECT_SPEED * dt;
-  if (input.state.left) rect.x -= RECT_SPEED * dt;
-  if (input.state.right) rect.x += RECT_SPEED * dt;
-  rect.x = Math.min(Math.max(rect.x, 0), WIDTH - rect.w);
-  rect.y = Math.min(Math.max(rect.y, 0), HEIGHT - rect.h);
+  ticks++;
+  if (input.state.up) chopper.y -= SPEED * dt;
+  if (input.state.down) chopper.y += SPEED * dt;
+  if (input.state.left) chopper.x -= SPEED * dt;
+  if (input.state.right) chopper.x += SPEED * dt;
+  chopper.x = Math.min(Math.max(chopper.x, chopper.w / 2), WIDTH - chopper.w / 2);
+  chopper.y = Math.min(Math.max(chopper.y, chopper.h / 2), HEIGHT - chopper.h / 2);
 }
 
 let frames = 0;
@@ -31,8 +41,12 @@ function render(): void {
   const { ctx } = renderer;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.fillStyle = '#6abe30';
-  ctx.fillRect(Math.round(rect.x), Math.round(rect.y), rect.w, rect.h);
+  const frameIndex = Math.floor(ticks / 4) % chopperCanvases.length;
+  ctx.drawImage(
+    chopperCanvases[frameIndex],
+    Math.round(chopper.x - chopper.w / 2),
+    Math.round(chopper.y - chopper.h / 2),
+  );
   ctx.fillStyle = '#9badb7';
   ctx.font = '10px monospace';
   ctx.fillText(`FPS ${fps}`, 4, 12);
