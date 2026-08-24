@@ -14,8 +14,13 @@ export function computePresentation(screenW: number, screenH: number): Presentat
   };
 }
 
+export interface Camera { x: number; y: number }
+
 export interface Renderer {
   ctx: CanvasRenderingContext2D;
+  // World-space view origin. The renderer never applies it; game draw code
+  // subtracts it (draw at pos - camera). Owned/reset by the active scene.
+  camera: Camera;
   present(): void;
   resize(): void;
 }
@@ -31,6 +36,7 @@ export function createRenderer(screen: HTMLCanvasElement): Renderer {
 
   return {
     ctx,
+    camera: { x: 0, y: 0 },
     resize() {
       screen.width = window.innerWidth;
       screen.height = window.innerHeight;
