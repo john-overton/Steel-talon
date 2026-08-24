@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { layerOffsets, parseGrid, type LayeredSprite, type SpriteDef } from './sprite';
+import {
+  drawLayered,
+  layerOffsets,
+  parseGrid,
+  type LayeredSprite,
+  type PreparedLayered,
+  type SpriteDef,
+} from './sprite';
 
 const PAL = ['#000000', '#ff0000', '#00ff00'] as const;
 
@@ -86,5 +93,29 @@ describe('layerOffsets', () => {
 
   it('returns an empty list for an empty layer stack', () => {
     expect(layerOffsets({ layers: [] })).toEqual([]);
+  });
+});
+
+describe('drawLayered visibility', () => {
+  it('skips layers with visible: false', () => {
+    const grid = parseGrid(['0'], ['#102030']);
+    const def: SpriteDef = { frames: [grid], anchors: { a: [0, 0] as const } };
+    const sprite: LayeredSprite = {
+      layers: [
+        { def, frame: 0 },
+        { def, frame: 0, attach: { to: 'a', by: 'a' }, visible: false },
+        { def, frame: 0, attach: { to: 'a', by: 'a' }, visible: true },
+      ],
+    };
+    const fake = {} as HTMLCanvasElement;
+    const prepared: PreparedLayered = { sprite, canvases: [[fake], [fake], [fake]] };
+    const calls: unknown[][] = [];
+    const ctx = {
+      drawImage: (...args: unknown[]) => {
+        calls.push(args);
+      },
+    } as unknown as CanvasRenderingContext2D;
+    drawLayered(ctx, prepared, 10, 10);
+    expect(calls).toHaveLength(2); // base + visible:true; visible:false skipped
   });
 });

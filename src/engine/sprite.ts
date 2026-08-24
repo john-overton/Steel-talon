@@ -46,6 +46,7 @@ export interface Layer {
   def: SpriteDef;
   frame: number;
   attach?: { to: string; by: string }; // base anchor name / own anchor name
+  visible?: boolean; // false hides the layer; undefined/true draws
 }
 
 export interface LayeredSprite {
@@ -89,6 +90,7 @@ export function drawLayered(
   const ox = cx - (baseGrid.width * scale) / 2;
   const oy = cy - (baseGrid.height * scale) / 2;
   sprite.layers.forEach((layer, i) => {
+    if (layer.visible === false) return;
     const grid = layer.def.frames[layer.frame];
     ctx.drawImage(
       canvases[i][layer.frame],
