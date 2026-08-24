@@ -51,6 +51,32 @@ export const MUZZLE_FLASH: SpriteDef = {
   anchors: { mount: [4, 4] },
 };
 
+// Enemy shot: 6x6 pulsing orb, hot core with a darker rim; two frames
+// alternate rim/core chars so it flickers against the water.
+export const ENEMY_SHOT_FRAME_TICKS = 8;
+
+export const ENEMY_SHOT: SpriteDef = {
+  frames: [
+    parseGrid([
+      '..55..',
+      '.5885.',
+      '588885',
+      '588885',
+      '.5885.',
+      '..55..',
+    ], PALETTE),
+    parseGrid([
+      '..rr..',
+      '.rllr.',
+      'rllllr',
+      'rllllr',
+      '.rllr.',
+      '..rr..',
+    ], PALETTE),
+  ],
+  anchors: { center: [2, 2] },
+};
+
 // 4x10 rocket in flight: white tip over an orange collar, gunmetal body
 // with fore and aft fins, and a yellow-over-orange exhaust plume.
 export const ROCKET: SpriteDef = {

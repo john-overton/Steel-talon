@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MUZZLE_FLASH, ROCKET, TRACER } from './shots';
+import {
+  ENEMY_SHOT, MUZZLE_FLASH, ROCKET, TRACER,
+} from './shots';
 
 describe('shot sprites', () => {
   it('tracer is a single 4x8 frame with a center anchor', () => {
@@ -23,5 +25,15 @@ describe('shot sprites', () => {
     expect(ROCKET.frames[0].width).toBe(4);
     expect(ROCKET.frames[0].height).toBe(10);
     expect(ROCKET.anchors.center).toEqual([2, 5]);
+  });
+
+  it('ENEMY_SHOT has two 6x6 frames, a center anchor, and differing frames', () => {
+    expect(ENEMY_SHOT.frames).toHaveLength(2);
+    for (const f of ENEMY_SHOT.frames) {
+      expect(f.width).toBe(6);
+      expect(f.height).toBe(6);
+    }
+    expect(ENEMY_SHOT.anchors.center).toEqual([2, 2]);
+    expect(ENEMY_SHOT.frames[0]).not.toEqual(ENEMY_SHOT.frames[1]);
   });
 });
