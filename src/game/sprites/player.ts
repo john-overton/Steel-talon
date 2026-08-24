@@ -4,24 +4,26 @@ import { parseGrid, type PixelGrid } from '../../engine/sprite';
 import { PALETTE } from '../palette';
 
 const BODY_A = [
-  '.......mm.......',
-  'oooooooommoooooo',
-  '.......mm.......',
-  '......cccc......',
-  '.....cccccc.....',
-  '....ccmccmcc....',
-  '....cccccccc....',
-  '.....cccccc.....',
-  '......cccc......',
-  '......1cc1......',
   '.......cc.......',
+  '......cccc......',
+  '......c11c......',
+  '......c11c......',
+  '.....cccccc.....',
+  '.mmmmccccccmmmm.',
+  '...1.cccccc.1...',
+  'ooooooommooooooo',
+  '.....cccccc.....',
+  '......cccc......',
+  '.......cc.......',
+  '.......cc.......',
+  '.......cc.......',
+  '....mmm11mmm....',
   '.......cc.......',
   '......m11m......',
-  '.......11.......',
 ];
 
 const BODY_B = BODY_A.map((row, y) =>
-  y === 1 ? '...oooooooooo...' : row,
+  y === 7 ? '...oooommoooo...' : row,
 );
 
 export const CHOPPER_FRAMES: PixelGrid[] = [
