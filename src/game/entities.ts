@@ -1,7 +1,8 @@
 // Flat entity model over fixed pools (engine spec §7): no ECS, no
 // allocation in the hot loop. Systems are plain functions over a World.
+import { circlesOverlap } from '../engine/collide';
 import { createPool, type Pool } from '../engine/pool';
-import { HEIGHT } from '../engine/renderer';
+import { HEIGHT, WIDTH } from '../engine/renderer';
 import { PALETTE } from './palette';
 
 export interface Vec2 { x: number; y: number; }
@@ -141,4 +142,64 @@ export function spawnSmoke(w: World, x: number, y: number, life: number): void {
   p.size = 2;
   p.color = w.rng() < 0.5 ? PALETTE[24] : PALETTE[25];
   p.life = life; p.age = 0;
+}
+
+// Interim spawner (milestone 7's waves.ts replaces this): boats drop in
+// from above on a seeded 1.2–2.2 s cadence.
+export interface Spawner { timer: number; }
+
+export function createSpawner(rng: () => number): Spawner {
+  return { timer: 1.2 + rng() };
+}
+
+export function tickSpawner(w: World, s: Spawner, dt: number): void {
+  s.timer -= dt;
+  if (s.timer > 0) return;
+  s.timer = 1.2 + w.rng();
+  const e = w.enemies.spawn();
+  if (!e) return;
+  e.pos.x = 24 + w.rng() * (WIDTH - 48);
+  e.pos.y = -16;
+  e.vel.x = 0; e.vel.y = 60;
+  e.hp = 3; e.radius = 10; e.age = 0;
+}
+
+export interface CollisionResult { hits: number; kills: number; }
+
+export function collideBulletsEnemies(w: World): CollisionResult {
+  const result: CollisionResult = { hits: 0, kills: 0 };
+  w.bullets.forEachAlive((b) => {
+    w.enemies.forEachAlive((e) => {
+      if (!b.alive) return; // bullet spent earlier in this pass
+      if (!circlesOverlap(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, e.radius)) return;
+      b.alive = false;
+      e.hp--;
+      result.hits++;
+      spawnBurst(w, b.pos.x, b.pos.y, 3, 0.3);
+      if (e.hp <= 0) {
+        e.alive = false;
+        result.kills++;
+        spawnBurst(w, e.pos.x, e.pos.y, 12, 0.5);
+        for (let i = 0; i < 4; i++) spawnSmoke(w, e.pos.x, e.pos.y, 1.2);
+      }
+    });
+  });
+  return result;
+}
+
+const FIRE_COLORS = [PALETTE[21], PALETTE[8], PALETTE[5]]; // white, yellow, orange
+
+function spawnBurst(w: World, x: number, y: number, count: number, life: number): void {
+  for (let i = 0; i < count; i++) {
+    const p = w.particles.spawn();
+    if (!p) return;
+    const angle = w.rng() * Math.PI * 2;
+    const speed = 40 + w.rng() * 100;
+    p.pos.x = x; p.pos.y = y;
+    p.vel.x = Math.cos(angle) * speed;
+    p.vel.y = Math.sin(angle) * speed;
+    p.size = w.rng() < 0.5 ? 1 : 2;
+    p.color = FIRE_COLORS[Math.floor(w.rng() * FIRE_COLORS.length)];
+    p.life = life; p.age = 0;
+  }
 }

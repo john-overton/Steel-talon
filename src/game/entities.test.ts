@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../engine/rng';
 import {
+  collideBulletsEnemies,
   createFireControl,
+  createSpawner,
   createWorld,
   FIRE_INTERVAL,
   FLASH_TICKS,
   spawnSmoke,
   tickBullets,
   tickEnemies,
+  tickSpawner,
   tickFire,
   tickParticles,
   type Muzzle,
@@ -171,5 +174,81 @@ describe('spawnSmoke', () => {
       expect(p.life).toBe(0.8);
       expect(p.pos.x).toBe(10);
     });
+  });
+});
+
+describe('spawner', () => {
+  it('spawns boats deterministically for a fixed seed', () => {
+    const rng = mulberry32(7);
+    const w = createWorld(rng);
+    const s = createSpawner(rng);
+    expect(s.timer).toBeGreaterThanOrEqual(1.2);
+    expect(s.timer).toBeLessThan(2.2);
+    for (let i = 0; i < 60 * 10; i++) tickSpawner(w, s, DT); // 10 simulated seconds
+    const alive = w.enemies.countAlive();
+    expect(alive).toBeGreaterThanOrEqual(4); // 10s / 2.2s max interval
+    expect(alive).toBeLessThanOrEqual(9);    // 10s / 1.2s min interval
+    w.enemies.forEachAlive((e) => {
+      expect(e.hp).toBe(3);
+      expect(e.radius).toBe(10);
+      expect(e.vel.y).toBe(60);
+      expect(e.pos.x).toBeGreaterThanOrEqual(24);
+      expect(e.pos.x).toBeLessThanOrEqual(640 - 24);
+    });
+  });
+
+  it('two spawners with the same seed produce identical positions', () => {
+    const runA: number[] = [];
+    const runB: number[] = [];
+    for (const out of [runA, runB]) {
+      const rng = mulberry32(99);
+      const w = createWorld(rng);
+      const s = createSpawner(rng);
+      for (let i = 0; i < 60 * 5; i++) tickSpawner(w, s, DT);
+      w.enemies.forEachAlive((e) => out.push(e.pos.x));
+    }
+    expect(runA).toEqual(runB);
+  });
+});
+
+describe('collideBulletsEnemies', () => {
+  function place(w: ReturnType<typeof createWorld>, hp: number) {
+    const e = w.enemies.spawn()!;
+    e.pos.x = 100; e.pos.y = 100; e.hp = hp; e.radius = 10;
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 105; b.radius = 2;
+    return { e, b };
+  }
+
+  it('hit kills the bullet, decrements hp, sparks 3 particles', () => {
+    const w = createWorld(mulberry32(1));
+    const { e, b } = place(w, 3);
+    const res = collideBulletsEnemies(w);
+    expect(res).toEqual({ hits: 1, kills: 0 });
+    expect(b.alive).toBe(false);
+    expect(e.alive).toBe(true);
+    expect(e.hp).toBe(2);
+    expect(w.particles.countAlive()).toBe(3);
+  });
+
+  it('killing blow explodes: 12 fire + 4 smoke particles', () => {
+    const w = createWorld(mulberry32(1));
+    const { e } = place(w, 1);
+    const res = collideBulletsEnemies(w);
+    expect(res).toEqual({ hits: 1, kills: 1 });
+    expect(e.alive).toBe(false);
+    expect(w.particles.countAlive()).toBe(3 + 12 + 4); // spark + fire + smoke
+  });
+
+  it('misses touch nothing', () => {
+    const w = createWorld(mulberry32(1));
+    const e = w.enemies.spawn()!;
+    e.pos.x = 100; e.pos.y = 100; e.hp = 3; e.radius = 10;
+    const b = w.bullets.spawn()!;
+    b.pos.x = 300; b.pos.y = 300; b.radius = 2;
+    const res = collideBulletsEnemies(w);
+    expect(res).toEqual({ hits: 0, kills: 0 });
+    expect(b.alive).toBe(true);
+    expect(e.hp).toBe(3);
   });
 });
