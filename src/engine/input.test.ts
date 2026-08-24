@@ -7,6 +7,7 @@ describe('createInput', () => {
     expect(state).toEqual({
       up: false, down: false, left: false, right: false,
       fire: false, special: false, start: false,
+      weapon1: false, weapon2: false, weapon3: false, weapon4: false,
     });
   });
 
@@ -43,6 +44,35 @@ describe('createInput', () => {
     expect(input.state).toEqual({
       up: false, down: false, left: false, right: false,
       fire: false, special: false, start: false,
+      weapon1: false, weapon2: false, weapon3: false, weapon4: false,
     });
+  });
+});
+
+describe('weapon keys', () => {
+  it('Digit and Numpad rows both map to weapon slots', () => {
+    const input = createInput();
+    input.onKey('Digit1', true);
+    input.onKey('Numpad3', true);
+    expect(input.state.weapon1).toBe(true);
+    expect(input.state.weapon3).toBe(true);
+    input.onKey('Digit1', false);
+    expect(input.state.weapon1).toBe(false);
+  });
+});
+
+describe('consumeAnyKey', () => {
+  it('reports a keydown once, then resets', () => {
+    const input = createInput();
+    expect(input.consumeAnyKey()).toBe(false);
+    input.onKey('KeyQ', true); // unbound key still counts
+    expect(input.consumeAnyKey()).toBe(true);
+    expect(input.consumeAnyKey()).toBe(false);
+  });
+
+  it('keyups do not count', () => {
+    const input = createInput();
+    input.onKey('KeyZ', false);
+    expect(input.consumeAnyKey()).toBe(false);
   });
 });
