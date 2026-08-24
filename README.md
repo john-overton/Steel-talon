@@ -6,7 +6,7 @@ Everything is hand-rolled: plain TypeScript, Canvas 2D, Web Audio. No engine, no
 
 ## Status
 
-Pre-code. The repo currently holds the design and technical documentation; the engine is built next, milestone by milestone.
+Milestones 1-3 complete: the 640x480 render contract, the fixed-timestep loop with keyboard input, and the sprite pipeline (DB32 palette, animated player chopper on screen). Milestone 4 and beyond are next; see `docs/steel-talon-engine-spec.md` for the build order.
 
 ## Repo Structure
 
@@ -15,17 +15,18 @@ docs/
   steel-talon-engine-spec.md   # technical spec: rendering, loop, audio, build order
   steel-talon-beat-sheet.md    # story, cast, and 10-level design
   gnarcade-concpet.md          # the surrounding arcade vision
-  architecture.md              # live doc of how the code works (arrives with first code)
+  architecture.md              # live doc of how the code works
   mockups/                     # visual references (guides, not literals)
 CLAUDE.md                      # working practices for AI-assisted development
-src/                           # (arrives with first milestone)
+src/
   engine/                      # game-agnostic: loop, renderer, sprites, audio, input, rng
   game/                        # Steel Talon: palette, sprites, songs, entities, scenes
+  **/*.test.ts                 # tests colocated with their source
 ```
 
 ## Development
 
-Requires Node.js (LTS). Once the project is scaffolded:
+Requires Node.js (LTS).
 
 ```bash
 npm install          # dev dependencies only (Vite, Vitest, TypeScript)
