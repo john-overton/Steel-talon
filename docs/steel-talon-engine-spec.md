@@ -196,10 +196,10 @@ Each milestone is small, runnable, and understandable before the next. Nothing d
 | 4 ✅ | Bullets with pooling, fire rate, screen bounds | Entities and pools | ~120 lines |
 | 5 ✅ | First enemy (drone boat), circle collision, explosion particles | Collision and particles | ~180 lines |
 | 6 ✅ | blip() SFX: shoot, hit, explode, pickup | Audio synthesis | ~100 lines |
-| 7 | Scrolling water tilemap, camera, waves.ts spawning from seed | Tiles, camera, seeded RNG | ~200 lines |
-| 8 | HP, salvage pickups, HUD (score, lives, salvage) | Game state | ~150 lines |
-| 9 | Sequencer + first song, title scene, INSERT COIN flow | Music and scenes | ~200 lines |
-| 10 | Level 1 TOP segment playable start to finish | The vertical slice | glue |
+| 7 ✅ | Scrolling water tilemap, camera, waves.ts spawning from seed | Tiles, camera, seeded RNG | ~200 lines |
+| 8 ✅ | HP, salvage pickups, HUD (score, lives, salvage) | Game state | ~150 lines |
+| 9 ✅ | Sequencer + first song, title scene, INSERT COIN flow | Music and scenes | ~200 lines |
+| 10 ✅ | Level 1 TOP segment playable start to finish | The vertical slice | glue |
 
 After 10, the same pattern extends: SIDE mode (add gravity and a horizontal camera), the training gulch, ROAM mode (free camera, boss logic), then Level 1 complete. Rough total for the full engine plus Level 1: **2,500 to 3,500 lines**, every one of them yours.
 
