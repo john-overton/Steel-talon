@@ -32,14 +32,52 @@ export function blipEnvelope(p: BlipParams): BlipEnvelope {
 export interface AudioSystem {
   unlock(): void;            // create/resume the AudioContext; call on a user gesture
   blip(p: BlipParams): void; // no-op until unlocked
+  // white-noise burst through a bandpass filter (default 800 Hz) starting at
+  // AudioContext time whenSec (default: now); no-op until unlocked
+  noise(durationSec: number, volume: number, bandFreq?: number, whenSec?: number): void;
+  context(): AudioContext | null; // null until unlocked; the sequencer schedules against this
 }
 
 export function createAudio(): AudioSystem {
   let ctx: AudioContext | null = null;
+  let noiseBuffer: AudioBuffer | null = null;
   return {
     unlock() {
       if (!ctx) ctx = new AudioContext();
       if (ctx.state === 'suspended') void ctx.resume();
+    },
+    context() {
+      return ctx;
+    },
+    noise(durationSec, volume, bandFreq = 800, whenSec) {
+      if (!ctx) return;
+      if (!noiseBuffer) {
+        const rate = ctx.sampleRate;
+        noiseBuffer = ctx.createBuffer(1, rate, rate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      }
+      const env = blipEnvelope({ type: 'square', startFreq: 1, endFreq: 1, duration: durationSec, volume });
+      const t0 = whenSec ?? ctx.currentTime;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      src.loop = true;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = bandFreq;
+      filter.Q.value = 1;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(env.floor, t0);
+      gain.gain.exponentialRampToValueAtTime(env.peak, t0 + env.attackEnd);
+      gain.gain.exponentialRampToValueAtTime(env.floor, t0 + env.decayEnd);
+      src.connect(filter).connect(gain).connect(ctx.destination);
+      src.start(t0);
+      src.stop(t0 + env.decayEnd + 0.02);
+      src.onended = () => {
+        src.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      };
     },
     blip(p) {
       if (!ctx) return;
