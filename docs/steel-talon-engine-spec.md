@@ -193,9 +193,9 @@ Each milestone is small, runnable, and understandable before the next. Nothing d
 | 1 ✅ | Black 640x480 canvas, integer scaling, FPS counter | The render contract | ~80 lines |
 | 2 ✅ | Fixed-timestep loop, moving test rect via keyboard | Loop and input | ~120 lines |
 | 3 ✅ | sprite() rasterizer, palette, chopper on screen, animated rotor | Procedural art pipeline | ~150 lines |
-| 4 | Bullets with pooling, fire rate, screen bounds | Entities and pools | ~120 lines |
-| 5 | First enemy (drone boat), circle collision, explosion particles | Collision and particles | ~180 lines |
-| 6 | blip() SFX: shoot, hit, explode, pickup | Audio synthesis | ~100 lines |
+| 4 ✅ | Bullets with pooling, fire rate, screen bounds | Entities and pools | ~120 lines |
+| 5 ✅ | First enemy (drone boat), circle collision, explosion particles | Collision and particles | ~180 lines |
+| 6 ✅ | blip() SFX: shoot, hit, explode, pickup | Audio synthesis | ~100 lines |
 | 7 | Scrolling water tilemap, camera, waves.ts spawning from seed | Tiles, camera, seeded RNG | ~200 lines |
 | 8 | HP, salvage pickups, HUD (score, lives, salvage) | Game state | ~150 lines |
 | 9 | Sequencer + first song, title scene, INSERT COIN flow | Music and scenes | ~200 lines |

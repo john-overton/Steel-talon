@@ -6,7 +6,7 @@ Everything is hand-rolled: plain TypeScript, Canvas 2D, Web Audio. No engine, no
 
 ## Status
 
-Milestones 1-3 complete: the 640x480 render contract, the fixed-timestep loop with keyboard input, and the sprite pipeline (DB32 palette, layered sprites with named anchors, animated player chopper on screen). Milestone 4 and beyond are next; see `docs/steel-talon-engine-spec.md` for the build order.
+Milestones 1-6 complete: the 640x480 render contract, the fixed-timestep loop with keyboard input, the sprite pipeline (DB32 palette, layered sprites with named anchors), and combat (pooled bullets, a spawning drone-boat enemy, circle collision, explosion/smoke/muzzle particles, synthesized SFX). Current build is a combat sandbox: fly the chopper, hold fire to shoot, boats explode with sound. Milestone 7 and beyond are next; see `docs/steel-talon-engine-spec.md` for the build order.
 
 ## Repo Structure
 
