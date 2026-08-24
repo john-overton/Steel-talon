@@ -34,8 +34,16 @@ export function createInput(): InputSource {
     state,
     onKey,
     attach(target) {
-      target.addEventListener('keydown', (e) => onKey((e as KeyboardEvent).code, true));
+      target.addEventListener('keydown', (e) => {
+        const ke = e as KeyboardEvent;
+        if (BINDINGS[ke.code]) ke.preventDefault(); // arrows must not scroll the page
+        onKey(ke.code, true);
+      });
       target.addEventListener('keyup', (e) => onKey((e as KeyboardEvent).code, false));
+      // Alt-tab with a key held would leave it stuck down: clear on blur.
+      target.addEventListener('blur', () => {
+        for (const key of Object.keys(state) as Array<keyof Input>) state[key] = false;
+      });
     },
   };
 }
