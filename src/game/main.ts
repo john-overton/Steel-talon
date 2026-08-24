@@ -31,6 +31,9 @@ export function start(seed: number): void {
   // Unlock retries on every keydown (autoplay policy quirks) — must run in
   // the gesture handler, not the polled update.
   window.addEventListener('keydown', () => audio.unlock());
+  // Safari does not grant user-activation for keyboard events — only
+  // pointer/touch gestures can unlock an AudioContext there. Keep both.
+  window.addEventListener('pointerdown', () => audio.unlock());
 
   const sequencer = createSequencer(audio);
   const water = createWaterTilemap();

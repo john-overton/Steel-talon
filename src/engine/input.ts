@@ -56,6 +56,11 @@ export function createInput(): InputSource {
         onKey(ke.code, true);
       });
       target.addEventListener('keyup', (e) => onKey((e as KeyboardEvent).code, false));
+      // Arcade coin-drop: a click/tap counts as "PRESS ANY KEY" on the
+      // title screen too — it only sets the anyKey latch, no bound action.
+      target.addEventListener('pointerdown', () => {
+        anyKey = true;
+      });
       // Alt-tab with a key held would leave it stuck down: clear on blur.
       target.addEventListener('blur', () => {
         for (const key of Object.keys(state) as Array<keyof Input>) state[key] = false;

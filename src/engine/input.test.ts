@@ -76,3 +76,19 @@ describe('consumeAnyKey', () => {
     expect(input.consumeAnyKey()).toBe(false);
   });
 });
+
+describe('attach', () => {
+  it('a pointerdown gesture sets the anyKey latch (arcade coin-drop)', () => {
+    const input = createInput();
+    const handlers: Record<string, (e: unknown) => void> = {};
+    const stubTarget = {
+      addEventListener(type: string, fn: (e: unknown) => void) {
+        handlers[type] = fn;
+      },
+    };
+    input.attach(stubTarget as unknown as EventTarget);
+    expect(handlers.pointerdown).toBeDefined();
+    handlers.pointerdown({});
+    expect(input.consumeAnyKey()).toBe(true);
+  });
+});
