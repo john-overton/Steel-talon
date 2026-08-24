@@ -3,7 +3,7 @@
 import { parseGrid, type PixelGrid } from '../../engine/sprite';
 import { PALETTE } from '../palette';
 
-const BODY_A = [
+const BODY = [
   '.......cc.......',
   '......cccc......',
   '......c11c......',
@@ -11,7 +11,7 @@ const BODY_A = [
   '.....cccccc.....',
   '.mmmmccccccmmmm.',
   '...1.cccccc.1...',
-  'ooooooommooooooo',
+  '.....ccmmcc.....',
   '.....cccccc.....',
   '......cccc......',
   '.......cc.......',
@@ -22,11 +22,24 @@ const BODY_A = [
   '......m11m......',
 ];
 
-const BODY_B = BODY_A.map((row, y) =>
-  y === 7 ? '...oooommoooo...' : row,
-);
+// Rotor hub sits at row 7, cols 7-8. The two frames alternate the blur
+// between a + (0°/90°) and an x (45°) so the rotor reads as spinning
+// in the top-down plane rather than flapping.
+const PLUS: Array<[number, number]> = [];
+const CROSS: Array<[number, number]> = [];
+for (let d = 1; d <= 7; d++) PLUS.push([7, 7 - d], [7, 8 + d]);
+for (let d = 1; d <= 6; d++) {
+  PLUS.push([7 - d, 7], [7 - d, 8], [7 + d, 7], [7 + d, 8]);
+  CROSS.push([7 - d, 7 - d], [7 - d, 8 + d], [7 + d, 7 - d], [7 + d, 8 + d]);
+}
+
+function withRotor(blades: Array<[number, number]>): string[] {
+  const grid = BODY.map((row) => row.split(''));
+  for (const [y, x] of blades) grid[y][x] = 'o';
+  return grid.map((row) => row.join(''));
+}
 
 export const CHOPPER_FRAMES: PixelGrid[] = [
-  parseGrid(BODY_A, PALETTE),
-  parseGrid(BODY_B, PALETTE),
+  parseGrid(withRotor(PLUS), PALETTE),
+  parseGrid(withRotor(CROSS), PALETTE),
 ];

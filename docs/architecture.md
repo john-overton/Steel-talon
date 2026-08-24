@@ -38,7 +38,7 @@ Deliberate deviation from the engine spec: the spec's snippet uses `OffscreenCan
 
 `src/game/palette.ts` defines `PALETTE`: DawnBringer 32, 32 hex colors, indexed 0-9 then a-v in the sprite strings.
 
-`src/game/sprites/player.ts` defines the chopper as two 16x16 frames (`BODY_A`, `BODY_B`, identical except the rotor blur row) parsed with `parseGrid` into `CHOPPER_FRAMES: PixelGrid[]`.
+`src/game/sprites/player.ts` defines the chopper as two 16x16 frames (a shared `BODY` grid with rotor-blur blades stamped over it — a `+` pattern in frame 0, an `x` in frame 1, so the rotor reads as spinning in the top-down plane) parsed with `parseGrid` into `CHOPPER_FRAMES: PixelGrid[]`.
 
 ## Game wiring
 
