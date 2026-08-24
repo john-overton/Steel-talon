@@ -149,8 +149,8 @@ describe('typed spawns', () => {
     expect(e).toBeDefined();
     expect(e!.enemyKind).toBe('boat');
     expect(e!.hp).toBe(3);
-    expect(e!.radius).toBe(10);
-    expect(e!.vel).toEqual({ x: 0, y: 40 });
+    expect(e!.radius).toBe(20);
+    expect(e!.vel).toEqual({ x: 0, y: 80 });
     expect(e!.score).toBe(100);
     expect(e!.salvageChance).toBeCloseTo(0.25);
     expect(e!.fireTimer).toBeGreaterThanOrEqual(2.0);
@@ -164,7 +164,7 @@ describe('typed spawns', () => {
     expect(e!.hp).toBe(2);
     expect(e!.baseX).toBe(200);
     expect(e!.hasFired).toBe(false);
-    expect(e!.vel.y).toBe(120);
+    expect(e!.vel.y).toBe(240);
   });
 });
 
@@ -232,17 +232,17 @@ describe('homing, accel, trail', () => {
 describe('pickups', () => {
   it('spawnPickup sets kind-specific radius and drift', () => {
     const w = createWorld(mulberry32(1));
-    expect(spawnPickup(w, 'minigun', 10, 10)!.radius).toBe(14);
-    expect(spawnPickup(w, 'crate', 10, 10)!.radius).toBe(8);
-    expect(spawnPickup(w, 'salvage', 10, 10)!.radius).toBe(6);
+    expect(spawnPickup(w, 'minigun', 10, 10)!.radius).toBe(28);
+    expect(spawnPickup(w, 'crate', 10, 10)!.radius).toBe(16);
+    expect(spawnPickup(w, 'salvage', 10, 10)!.radius).toBe(12);
   });
 
   it('salvage magnetizes toward a close player', () => {
     const w = createWorld(mulberry32(1));
     const p = spawnPickup(w, 'salvage', 100, 100)!;
-    tickPickups(w, 1 / 60, 0, { x: 110, y: 110 }); // within 56px
+    tickPickups(w, 1 / 60, 0, { x: 110, y: 110 }); // within 112px
     const speed = Math.hypot(p.vel.x, p.vel.y);
-    expect(speed).toBeCloseTo(220, 1);
+    expect(speed).toBeCloseTo(440, 1);
     expect(p.vel.x).toBeGreaterThan(0);
     expect(p.vel.y).toBeGreaterThan(0);
   });
@@ -251,7 +251,7 @@ describe('pickups', () => {
     const w = createWorld(mulberry32(1));
     const p = spawnPickup(w, 'salvage', 100, 100)!;
     tickPickups(w, 1 / 60, 0, { x: 500, y: 400 });
-    expect(p.vel).toEqual({ x: 0, y: 30 });
+    expect(p.vel).toEqual({ x: 0, y: 60 });
   });
 });
 
@@ -264,10 +264,10 @@ describe('enemy behaviors', () => {
     expect(w.enemyBullets.countAlive()).toBe(1);
     const b = w.enemyBullets.items.find((x) => x.alive)!;
     const speed = Math.hypot(b.vel.x, b.vel.y);
-    expect(speed).toBeCloseTo(140, 1);
+    expect(speed).toBeCloseTo(280, 1);
     expect(b.vel.x).toBeGreaterThan(0); // aimed right-down toward (200,300)
     expect(b.vel.y).toBeGreaterThan(0);
-    expect(b.radius).toBe(2);
+    expect(b.radius).toBe(4);
     expect(boat.fireTimer).toBeGreaterThan(1.9); // reset
   });
 
@@ -283,7 +283,7 @@ describe('enemy behaviors', () => {
     const w = createWorld(mulberry32(7));
     const d = spawnDelta(w, 300, 50)!;
     for (let i = 0; i < 30; i++) tickEnemies(w, 1 / 60, 0, { x: 0, y: 1000 });
-    expect(d.pos.x).toBeCloseTo(300 + Math.sin(d.age * 2.2) * 28, 5);
+    expect(d.pos.x).toBeCloseTo(300 + Math.sin(d.age * 2.2) * 56, 5);
   });
 
   it('delta fires exactly once when close to player y', () => {
@@ -293,8 +293,8 @@ describe('enemy behaviors', () => {
     expect(w.enemyBullets.countAlive()).toBe(1);
     expect(d.hasFired).toBe(true);
     const b = w.enemyBullets.items.find((x) => x.alive)!;
-    expect(b.vel).toEqual({ x: 0, y: 200 });
-    expect(b.radius).toBe(2);
+    expect(b.vel).toEqual({ x: 0, y: 400 });
+    expect(b.radius).toBe(4);
   });
 });
 
@@ -347,8 +347,8 @@ describe('damage, splash, salvage, score', () => {
 
   it('splash damages nearby enemies by 1', () => {
     const w = createWorld(mulberry32(9));
-    const near = spawnBoat(w, 120, 100)!;   // 20px away — inside 24
-    const far = spawnBoat(w, 160, 100)!;    // 60px away — outside
+    const near = spawnBoat(w, 140, 100)!;   // 40px away — inside 48
+    const far = spawnBoat(w, 200, 100)!;    // 100px away — outside
     const target = spawnBoat(w, 100, 100)!;
     const b = w.bullets.spawn()!;
     b.pos.x = 100; b.pos.y = 100; b.radius = 4; b.dmg = 3; b.splash = true;

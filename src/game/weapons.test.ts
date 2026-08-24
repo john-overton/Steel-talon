@@ -105,11 +105,11 @@ describe('rockets (slot 3)', () => {
     const rockets = w.bullets.items.filter((b) => b.dmg === ROCKET_DMG);
     expect(rockets).toHaveLength(SALVO_SIZE);
     for (const rk of rockets) {
-      expect(rk.accel).toBe(900);
+      expect(rk.accel).toBe(1800);
       expect(rk.trail).toBe(true);
       // spread: mostly upward, slight x component allowed
-      expect(rk.vel.y).toBeLessThan(-110);
-      expect(Math.abs(rk.vel.x)).toBeLessThan(15);
+      expect(rk.vel.y).toBeLessThan(-220);
+      expect(Math.abs(rk.vel.x)).toBeLessThan(30);
     }
   });
 

@@ -16,7 +16,7 @@ export interface Entity {
 
 // Camera-relative despawn band: entities die once they scroll this far
 // past the visible 640x480 viewport (above or below camY..camY+HEIGHT).
-export const CAM_MARGIN = 32;
+export const CAM_MARGIN = 64;
 
 // Particles carry their own draw data so the render pass is one
 // fillRect per particle, no sprite rasterization.
@@ -58,8 +58,8 @@ const BULLET_MAX_AGE = 2;
 const PARTICLE_DRAG = 2; // fraction of velocity shed per second
 const HOMING_TURN_RATE = 3.5; // rad/s
 const TRAIL_TICKS = 4;
-const MAGNET_RADIUS = 56;
-const MAGNET_SPEED = 220;
+const MAGNET_RADIUS = 112;
+const MAGNET_SPEED = 440;
 
 function makeEntity(kind: Entity['kind']): Entity {
   return {
@@ -182,14 +182,14 @@ export function tickParticles(w: World, dt: number): void {
   });
 }
 
-const BOAT_SHOT_SPEED = 140;
-const DELTA_SHOT_RANGE = 220;
+const BOAT_SHOT_SPEED = 280;
+const DELTA_SHOT_RANGE = 440;
 
 export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): void {
   w.enemies.forEachAlive((e) => {
     e.age += dt;
     if (e.enemyKind === 'delta') {
-      e.pos.x = e.baseX + Math.sin(e.age * 2.2) * 28;
+      e.pos.x = e.baseX + Math.sin(e.age * 2.2) * 56;
       e.pos.y += e.vel.y * dt;
     } else {
       e.pos.x += e.vel.x * dt;
@@ -204,7 +204,7 @@ export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): v
           const dx = player.x - e.pos.x;
           const dy = player.y - e.pos.y;
           const dist = Math.hypot(dx, dy);
-          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 2;
+          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 4;
           if (dist === 0) {
             b.vel.x = 0; b.vel.y = BOAT_SHOT_SPEED;
           } else {
@@ -218,8 +218,8 @@ export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): v
       if (!e.hasFired && Math.abs(player.y - e.pos.y) < DELTA_SHOT_RANGE) {
         const b = w.enemyBullets.spawn();
         if (b) {
-          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 2;
-          b.vel.x = 0; b.vel.y = 200;
+          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 4;
+          b.vel.x = 0; b.vel.y = 400;
         }
         e.hasFired = true;
       }
@@ -284,8 +284,8 @@ export function spawnBoat(w: World, x: number, y: number): Enemy | undefined {
   if (!e) return undefined;
   e.enemyKind = 'boat';
   e.pos.x = x; e.pos.y = y;
-  e.vel.x = 0; e.vel.y = 40;
-  e.hp = 3; e.radius = 10; e.age = 0;
+  e.vel.x = 0; e.vel.y = 80;
+  e.hp = 3; e.radius = 20; e.age = 0;
   e.fireTimer = 2.0 + w.rng() * 0.8;
   e.baseX = x; e.hasFired = false;
   e.score = 100; e.salvageChance = 0.25;
@@ -297,18 +297,18 @@ export function spawnDelta(w: World, x: number, y: number): Enemy | undefined {
   if (!e) return undefined;
   e.enemyKind = 'delta';
   e.pos.x = x; e.pos.y = y;
-  e.vel.x = 0; e.vel.y = 120;
-  e.hp = 2; e.radius = 8; e.age = 0;
+  e.vel.x = 0; e.vel.y = 240;
+  e.hp = 2; e.radius = 16; e.age = 0;
   e.baseX = x; e.hasFired = false; e.fireTimer = 0;
   e.score = 150; e.salvageChance = 0.40;
   return e;
 }
 
 const PICKUP_RADIUS: Record<PickupKind, number> = {
-  minigun: 14, rockets: 14, crate: 8, salvage: 6,
+  minigun: 28, rockets: 28, crate: 16, salvage: 12,
 };
 const PICKUP_VY: Record<PickupKind, number> = {
-  minigun: 40, rockets: 40, crate: 45, salvage: 30,
+  minigun: 80, rockets: 80, crate: 90, salvage: 60,
 };
 
 export function spawnPickup(w: World, kind: PickupKind, x: number, y: number): Pickup | undefined {
@@ -322,7 +322,7 @@ export function spawnPickup(w: World, kind: PickupKind, x: number, y: number): P
   return p;
 }
 
-export const SPLASH_RADIUS = 24;
+export const SPLASH_RADIUS = 48;
 
 export interface CollisionResult { hits: number; kills: number; score: number; }
 
