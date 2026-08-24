@@ -1,6 +1,6 @@
-// Caribbean water: three 16x16 variants (calm, light chop, foam fleck),
+// Caribbean water: three 32x32 variants (calm, light chop, foam fleck),
 // two shimmer frames each. Rows are generated from sparkle coordinates so
-// every row is exactly 16 chars by construction. Palette: g deep blue,
+// every row is exactly 32 chars by construction. Palette: g deep blue,
 // h/i highlights, l white foam.
 import { parseGrid, rasterize, type PixelGrid } from '../../engine/sprite';
 import type { Tilemap } from '../../engine/tilemap';
@@ -8,7 +8,7 @@ import { PALETTE } from '../palette';
 
 export const WATER_FRAME_TICKS = 30;
 
-const SIZE = 16;
+const SIZE = 32;
 
 // [x, y, paletteChar] sparkles over a solid deep-blue base.
 type Fleck = [number, number, string];
@@ -19,27 +19,59 @@ function tile(flecks: Fleck[]): PixelGrid {
   return parseGrid(rows.map((r) => r.join('')), PALETTE);
 }
 
-const CALM_A: Fleck[] = [[5, 2, 'h'], [10, 5, 'h'], [2, 9, 'h'], [13, 13, 'h']];
-const CALM_B: Fleck[] = [[5, 3, 'h'], [10, 6, 'h'], [2, 10, 'h'], [13, 14, 'h']];
+// Horizontal chop streak: `len` pixels of `ch` starting at (x, y).
+function dash(x: number, y: number, len: number, ch: string): Fleck[] {
+  return Array.from({ length: len }, (_, i): Fleck => [x + i, y, ch]);
+}
+
+// Two-row foam crest: a bright white core feathered with 'i' at the ends.
+function crest(x: number, y: number): Fleck[] {
+  return [
+    [x, y, 'i'], [x + 1, y, 'l'], [x + 2, y, 'l'], [x + 3, y, 'l'], [x + 4, y, 'i'],
+    [x - 1, y + 1, 'i'], [x, y + 1, 'l'], [x + 1, y + 1, 'l'],
+    [x + 2, y + 1, 'l'], [x + 3, y + 1, 'i'],
+  ];
+}
+
+const CALM_A: Fleck[] = [
+  [3, 2, 'h'], [11, 1, 'i'], [21, 4, 'h'], [28, 3, 'h'],
+  [7, 8, 'i'], [16, 6, 'h'], [25, 10, 'h'], [1, 12, 'h'],
+  [12, 14, 'i'], [20, 16, 'h'], [29, 15, 'h'], [5, 19, 'h'],
+  [15, 22, 'i'], [24, 24, 'h'], [9, 27, 'h'], [19, 29, 'h'],
+];
+const CALM_B: Fleck[] = [
+  [4, 3, 'h'], [11, 2, 'h'], [22, 5, 'i'], [28, 5, 'h'],
+  [6, 9, 'h'], [17, 7, 'i'], [26, 11, 'h'], [2, 13, 'i'],
+  [13, 15, 'h'], [19, 18, 'h'], [30, 16, 'i'], [4, 20, 'h'],
+  [16, 23, 'h'], [23, 25, 'i'], [10, 28, 'h'], [20, 30, 'h'],
+];
+
 const CHOP_A: Fleck[] = [
-  [4, 1, 'h'], [5, 1, 'h'], [10, 3, 'i'], [11, 3, 'h'], [12, 3, 'h'],
-  [2, 5, 'h'], [3, 5, 'h'], [4, 5, 'i'], [7, 8, 'h'], [8, 8, 'h'],
-  [1, 11, 'i'], [2, 11, 'h'], [11, 13, 'i'], [12, 13, 'h'],
+  ...dash(2, 2, 3, 'h'), ...dash(13, 1, 4, 'i'), ...dash(24, 3, 3, 'h'),
+  ...dash(6, 7, 4, 'h'), ...dash(17, 6, 3, 'i'), ...dash(27, 8, 4, 'h'),
+  ...dash(1, 12, 3, 'i'), ...dash(11, 13, 4, 'h'), ...dash(21, 11, 3, 'h'),
+  ...dash(5, 17, 4, 'h'), ...dash(15, 18, 3, 'h'), ...dash(26, 16, 4, 'i'),
+  ...dash(2, 22, 3, 'h'), ...dash(12, 21, 4, 'i'), ...dash(23, 23, 3, 'h'),
+  ...dash(7, 27, 4, 'h'), ...dash(18, 28, 3, 'i'), ...dash(27, 26, 4, 'h'),
 ];
 const CHOP_B: Fleck[] = [
-  [4, 2, 'i'], [5, 2, 'h'], [11, 4, 'h'], [12, 4, 'h'], [13, 4, 'i'],
-  [2, 6, 'h'], [3, 6, 'h'], [4, 6, 'i'], [7, 9, 'i'], [8, 9, 'h'], [9, 9, 'h'],
-  [2, 12, 'i'], [3, 12, 'h'], [12, 14, 'i'], [13, 14, 'h'],
+  ...dash(4, 3, 3, 'i'), ...dash(14, 2, 4, 'h'), ...dash(25, 4, 3, 'h'),
+  ...dash(8, 8, 4, 'h'), ...dash(18, 7, 3, 'h'), ...dash(27, 9, 4, 'i'),
+  ...dash(3, 13, 3, 'h'), ...dash(13, 14, 4, 'i'), ...dash(23, 12, 3, 'h'),
+  ...dash(7, 18, 4, 'i'), ...dash(17, 19, 3, 'h'), ...dash(27, 17, 4, 'h'),
+  ...dash(4, 23, 3, 'i'), ...dash(14, 22, 4, 'h'), ...dash(25, 24, 3, 'h'),
+  ...dash(9, 28, 4, 'h'), ...dash(20, 29, 3, 'h'), ...dash(29, 27, 3, 'i'),
 ];
+
 const FOAM_A: Fleck[] = [
-  [5, 2, 'l'], [6, 2, 'l'], [7, 2, 'i'], [4, 3, 'i'], [5, 3, 'l'],
-  [10, 6, 'l'], [11, 6, 'l'], [9, 7, 'i'], [10, 7, 'l'], [11, 7, 'l'], [12, 7, 'i'],
-  [2, 10, 'l'], [13, 13, 'l'],
+  ...crest(5, 3), ...crest(19, 8), ...crest(9, 17), ...crest(23, 24),
+  [28, 2, 'l'], [12, 7, 'i'], [2, 12, 'i'], [16, 13, 'l'],
+  [26, 14, 'i'], [29, 19, 'l'], [3, 26, 'l'], [17, 30, 'i'],
 ];
 const FOAM_B: Fleck[] = [
-  [6, 2, 'l'], [7, 2, 'i'], [5, 3, 'i'], [6, 3, 'l'],
-  [11, 6, 'l'], [12, 6, 'l'], [10, 7, 'i'], [11, 7, 'l'], [12, 7, 'l'],
-  [4, 10, 'l'], [12, 13, 'l'],
+  ...crest(7, 2), ...crest(17, 9), ...crest(11, 18), ...crest(21, 25),
+  [26, 5, 'l'], [3, 8, 'i'], [29, 12, 'i'], [14, 14, 'l'],
+  [23, 16, 'i'], [2, 21, 'l'], [6, 29, 'l'], [28, 30, 'i'],
 ];
 
 export const WATER_TILES: PixelGrid[] = [
@@ -63,7 +95,7 @@ export function pickWaterTile(col: number, row: number, frame: number): number {
 
 export function createWaterTilemap(): Tilemap {
   return {
-    tileSize: 16,
+    tileSize: SIZE,
     tiles: WATER_TILES.map(rasterize),
     pickTile: pickWaterTile,
   };

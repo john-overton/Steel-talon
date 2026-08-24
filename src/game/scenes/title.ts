@@ -49,7 +49,7 @@ export function createTitleScene(deps: TitleDeps): Scene {
       }
     },
     draw(ctx) {
-      drawTilemap(ctx, deps.water, 0, bgY % 16, WIDTH, HEIGHT, Math.floor(ticks / WATER_FRAME_TICKS));
+      drawTilemap(ctx, deps.water, 0, bgY % deps.water.tileSize, WIDTH, HEIGHT, Math.floor(ticks / WATER_FRAME_TICKS));
 
       ctx.globalAlpha = 0.55;
       ctx.fillStyle = '#000000';
