@@ -57,7 +57,7 @@ function launchRocket(w: World, mounts: Mounts, ws: WeaponState): void {
   b.pos.x = m.x; b.pos.y = m.y; b.age = 0;
   b.vel.x = Math.cos(angle) * ROCKET_LAUNCH_SPEED;
   b.vel.y = Math.sin(angle) * ROCKET_LAUNCH_SPEED;
-  b.dmg = ROCKET_DMG; b.radius = 3;
+  b.dmg = ROCKET_DMG; b.radius = 6;
   b.splash = false; b.homing = false;
   b.accel = ROCKET_ACCEL; b.trail = true; b.trailCount = 0;
 }
@@ -67,7 +67,7 @@ function fireBullet(w: World, m: Muzzle, dmg: number): void {
   if (b) {
     b.pos.x = m.x; b.pos.y = m.y; b.age = 0;
     b.vel.x = 0; b.vel.y = -BULLET_SPEED;
-    b.hp = 1; b.radius = 2;
+    b.hp = 1; b.radius = 4;
     b.dmg = dmg;
     b.splash = false; b.homing = false; b.accel = 0; b.trail = false; b.trailCount = 0;
   }
@@ -139,7 +139,7 @@ export function tickWeapons(
       if (b) {
         b.pos.x = m.x; b.pos.y = m.y; b.age = 0;
         b.vel.x = 0; b.vel.y = -MISSILE_SPEED;
-        b.hp = 1; b.radius = 4;
+        b.hp = 1; b.radius = 8;
         b.dmg = MISSILE_DMG;
         b.splash = true; b.homing = true; b.accel = 0; b.trail = true; b.trailCount = 0;
       }
