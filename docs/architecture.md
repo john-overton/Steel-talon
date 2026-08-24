@@ -38,11 +38,11 @@ Deliberate deviation from the engine spec: the spec's snippet uses `OffscreenCan
 
 `src/game/palette.ts` defines `PALETTE`: DawnBringer 32, 32 hex colors, indexed 0-9 then a-v in the sprite strings.
 
-`src/game/sprites/player.ts` defines the chopper as two 16x16 frames (a shared `BODY` grid with rotor-blur blades stamped over it — a `+` pattern in frame 0, an `x` in frame 1, so the rotor reads as spinning in the top-down plane) parsed with `parseGrid` into `CHOPPER_FRAMES: PixelGrid[]`.
+`src/game/sprites/player.ts` defines the chopper as two 32x32 frames (a shared `BODY` grid with rotor-blur blades stamped over it — a `+` pattern in frame 0, an `x` in frame 1, so the rotor reads as spinning in the top-down plane) parsed with `parseGrid` into `CHOPPER_FRAMES: PixelGrid[]`.
 
 ## Game wiring
 
-`src/game/main.ts` is the entry point. It creates the renderer and input, rasterizes `CHOPPER_FRAMES` once, and defines `update(dt)`/`render()` closures around a single chopper position (moved by `input.state` at `SPEED = 180` px/s, clamped to the 640x480 bounds) and a rotor-spin animation (`Math.floor(ticks / 4) % 2` selects the frame). `render()` clears the back buffer, draws the current chopper frame at 2x (`CHOPPER_SCALE`; smoothing is off, so the 16x16 sprite renders as crisp 32x32), overlays an FPS counter, and calls `renderer.present()`. A `requestAnimationFrame` loop tracks `now`, updates an FPS counter once per second, and calls `loop.frame(now)`.
+`src/game/main.ts` is the entry point. It creates the renderer and input, rasterizes `CHOPPER_FRAMES` once, and defines `update(dt)`/`render()` closures around a single chopper position (moved by `input.state` at `SPEED = 180` px/s, clamped to the 640x480 bounds) and a rotor-spin animation (`Math.floor(ticks / 4) % 2` selects the frame). `render()` clears the back buffer, draws the current chopper frame (`CHOPPER_SCALE`, currently 1x of the native 32x32 sprite), overlays an FPS counter, and calls `renderer.present()`. A `requestAnimationFrame` loop tracks `now`, updates an FPS counter once per second, and calls `loop.frame(now)`.
 
 ## Testing
 

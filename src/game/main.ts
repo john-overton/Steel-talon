@@ -14,7 +14,7 @@ const input = createInput();
 input.attach(window);
 
 const SPEED = 180; // pixels per second
-const CHOPPER_SCALE = 2; // sprite data stays 16x16; drawn at 2x (smoothing off keeps it crisp)
+const CHOPPER_SCALE = 1; // sprite is natively 32x32; bump for an even bigger chopper
 const chopperCanvases = CHOPPER_FRAMES.map(rasterize);
 const chopper = {
   x: WIDTH / 2,
