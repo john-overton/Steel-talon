@@ -245,50 +245,10 @@ export function tickPickups(w: World, dt: number, camY: number, player: Vec2): v
   });
 }
 
-export const FIRE_INTERVAL = 0.125; // 8 shots/sec
-export const FLASH_TICKS = 2;
-const BULLET_SPEED = 420;
-
 // A muzzle is a world-space fire point; dir is which side shells eject.
 export interface Muzzle { x: number; y: number; dir: -1 | 1; }
 
-export interface FireControl {
-  cooldown: number;   // seconds until next shot allowed
-  flashTicks: number; // update ticks the muzzle flash stays visible
-  flashFrame: number; // 0 | 1, alternates per shot
-  shotCount: number;  // every 3rd shot puffs smoke
-}
-
-export function createFireControl(): FireControl {
-  return { cooldown: 0, flashTicks: 0, flashFrame: 0, shotCount: 0 };
-}
-
-export function tickFire(
-  w: World, fc: FireControl, muzzles: Muzzle[], held: boolean, dt: number,
-): boolean {
-  fc.cooldown = Math.max(0, fc.cooldown - dt);
-  if (fc.flashTicks > 0) fc.flashTicks--;
-  if (!held || fc.cooldown > 0) return false;
-  fc.cooldown = FIRE_INTERVAL;
-  fc.flashTicks = FLASH_TICKS;
-  fc.flashFrame ^= 1;
-  fc.shotCount++;
-  for (const m of muzzles) {
-    const b = w.bullets.spawn();
-    if (b) {
-      b.pos.x = m.x; b.pos.y = m.y;
-      b.vel.x = 0; b.vel.y = -BULLET_SPEED;
-      b.hp = 1; b.radius = 2; b.age = 0;
-      b.dmg = 1;
-      b.splash = false; b.homing = false; b.accel = 0; b.trail = false; b.trailCount = 0;
-    }
-    spawnShell(w, m);
-    if (fc.shotCount % 3 === 0) spawnSmoke(w, m.x, m.y + 4, 0.8);
-  }
-  return true;
-}
-
-function spawnShell(w: World, m: Muzzle): void {
+export function spawnShell(w: World, m: Muzzle): void {
   const p = w.particles.spawn();
   if (!p) return;
   p.pos.x = m.x; p.pos.y = m.y;

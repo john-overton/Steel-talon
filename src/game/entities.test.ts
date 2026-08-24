@@ -7,10 +7,7 @@ import {
   collideEnemiesPlayer,
   collideEnemyBulletsPlayer,
   collidePickupsPlayer,
-  createFireControl,
   createWorld,
-  FIRE_INTERVAL,
-  FLASH_TICKS,
   spawnBoat,
   spawnDelta,
   spawnPickup,
@@ -18,10 +15,8 @@ import {
   tickBullets,
   tickEnemies,
   tickEnemyBullets,
-  tickFire,
   tickParticles,
   tickPickups,
-  type Muzzle,
 } from './entities';
 
 const DT = 1 / 60;
@@ -89,88 +84,6 @@ describe('tickEnemies', () => {
     e.pos.y = HEIGHT + CAM_MARGIN + 1;
     tickEnemies(w, DT, 0, { x: 320, y: 400 });
     expect(e.alive).toBe(false);
-  });
-});
-
-const MUZZLES: Muzzle[] = [
-  { x: 100, y: 200, dir: -1 },
-  { x: 120, y: 200, dir: 1 },
-];
-
-describe('tickFire', () => {
-  it('fires one bullet per muzzle when held and off cooldown', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    expect(tickFire(w, fc, MUZZLES, true, DT)).toBe(true);
-    expect(fc.cooldown).toBeCloseTo(FIRE_INTERVAL);
-    expect(w.bullets.countAlive()).toBe(2);
-    const spawned: number[] = [];
-    w.bullets.forEachAlive((b) => spawned.push(b.pos.x));
-    expect(spawned.sort((a, b) => a - b)).toEqual([100, 120]);
-    w.bullets.forEachAlive((b) => {
-      expect(b.vel.y).toBe(-420);
-      expect(b.radius).toBe(2);
-    });
-  });
-
-  it('does not fire when not held', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    expect(tickFire(w, fc, MUZZLES, false, DT)).toBe(false);
-    expect(w.bullets.countAlive()).toBe(0);
-  });
-
-  it('respects the 8/sec cooldown over simulated ticks', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    let shots = 0;
-    for (let i = 0; i < 60; i++) if (tickFire(w, fc, MUZZLES, true, DT)) shots++;
-    expect(shots).toBe(8); // 8 shots/sec over one simulated second
-  });
-
-  it('ejects one shell particle per muzzle per shot, kicked outward', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    tickFire(w, fc, MUZZLES, true, DT);
-    const shells: Array<{ x: number; vx: number }> = [];
-    w.particles.forEachAlive((p) => shells.push({ x: p.pos.x, vx: p.vel.x }));
-    expect(shells.length).toBeGreaterThanOrEqual(2);
-    const left = shells.find((s) => s.x === 100)!;
-    const right = shells.find((s) => s.x === 120)!;
-    expect(left.vx).toBeLessThan(0);   // dir -1 ejects left
-    expect(right.vx).toBeGreaterThan(0); // dir +1 ejects right
-  });
-
-  it('emits smoke on every third shot', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    const counts: number[] = [];
-    for (let shot = 0; shot < 3; shot++) {
-      // run ticks until the next shot lands
-      let fired = false;
-      while (!fired) fired = tickFire(w, fc, MUZZLES, true, DT);
-      counts.push(w.particles.countAlive());
-    }
-    // shots 1 and 2: 2 shells each (some may have expired: DT is small, life 0.4 — none expire)
-    // shot 3: 2 shells + 2 smoke
-    expect(counts[0]).toBe(2);
-    expect(counts[1]).toBe(4);
-    expect(counts[2]).toBe(8); // 6 shells + 2 smoke
-  });
-
-  it('raises the muzzle flash for FLASH_TICKS and alternates frames', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    tickFire(w, fc, MUZZLES, true, DT);
-    expect(fc.flashTicks).toBe(FLASH_TICKS);
-    const firstFrame = fc.flashFrame;
-    tickFire(w, fc, MUZZLES, false, DT);
-    tickFire(w, fc, MUZZLES, false, DT);
-    expect(fc.flashTicks).toBe(0);
-    // next shot alternates the frame
-    let fired = false;
-    while (!fired) fired = tickFire(w, fc, MUZZLES, true, DT);
-    expect(fc.flashFrame).toBe(firstFrame ^ 1);
   });
 });
 
@@ -252,24 +165,6 @@ describe('typed spawns', () => {
     expect(e!.baseX).toBe(200);
     expect(e!.hasFired).toBe(false);
     expect(e!.vel.y).toBe(120);
-  });
-
-  it('bullet spawn via tickFire resets projectile flags', () => {
-    const w = createWorld(mulberry32(1));
-    const fc = createFireControl();
-    tickFire(w, fc, [{ x: 10, y: 10, dir: -1 }], true, 1 / 60);
-    const b = w.bullets.items.find((x) => x.alive)!;
-    // dirty the flags, kill it, respawn, verify reset
-    b.splash = true; b.homing = true; b.accel = 99; b.trail = true; b.trailCount = 7; b.alive = false;
-    fc.cooldown = 0;
-    tickFire(w, fc, [{ x: 10, y: 10, dir: -1 }], true, 1 / 60);
-    const b2 = w.bullets.items.find((x) => x.alive)!;
-    expect(b2.dmg).toBe(1);
-    expect(b2.splash).toBe(false);
-    expect(b2.homing).toBe(false);
-    expect(b2.accel).toBe(0);
-    expect(b2.trail).toBe(false);
-    expect(b2.trailCount).toBe(0);
   });
 });
 

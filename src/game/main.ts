@@ -6,14 +6,16 @@ import { createRenderer, HEIGHT, WIDTH } from '../engine/renderer';
 import { mulberry32 } from '../engine/rng';
 import { drawLayered, prepareLayered, rasterize } from '../engine/sprite';
 import {
-  collideBulletsEnemies, createFireControl, createWorld,
-  tickBullets, tickEnemies, tickFire, tickParticles, type Muzzle,
+  collideBulletsEnemies, createWorld,
+  tickBullets, tickEnemies, tickParticles,
 } from './entities';
+import { createRun, grantWeapon, tickRun } from './run';
 import { SFX } from './sfx';
 import { createBoat } from './sprites/boat';
 import { CHOPPER_BODY, LAYER, createChopper } from './sprites/player';
 import { TRACER } from './sprites/shots';
 import { createWaveRunner, generateWaveScript, LEVEL_LENGTH, SCROLL_SPEED, tickWaves } from './waves';
+import { createWeaponState, tickWeapons, type Mounts } from './weapons';
 
 const SEED = 0xc0ffee; // fixed until start(seed) arrives with the shell seam
 
@@ -33,7 +35,11 @@ window.addEventListener('keydown', () => audio.unlock());
 
 const rng = mulberry32(SEED);
 const world = createWorld(rng);
-const fire = createFireControl();
+// Sandbox starts with miniguns granted so it still plays like pass 2 until
+// pickups (Task 11) let the player earn the loadout in-run.
+const run = createRun();
+grantWeapon(run, 'miniguns');
+const ws = createWeaponState();
 
 // Seeded Level 1 wave script (milestone 7). The sandbox has no camera/scene
 // yet (Task 16 adds the TOP scene), so we simulate a camera sweeping from
@@ -51,10 +57,11 @@ const CHOPPER_SCALE = 1;
 const chopperSprite = createChopper();
 const chopperPrepared = prepareLayered(chopperSprite);
 const rotorLayer = chopperSprite.layers[LAYER.ROTOR];
-const flashLayers = [
+const podFlashLayers = [
   chopperSprite.layers[LAYER.FLASH_L],
   chopperSprite.layers[LAYER.FLASH_R],
 ];
+const noseFlashLayer = chopperSprite.layers[LAYER.FLASH_NOSE];
 const boatPrepared = prepareLayered(createBoat());
 const tracerCanvas = rasterize(TRACER.frames[0]);
 const [TRACER_CX, TRACER_CY] = TRACER.anchors.center;
@@ -69,20 +76,32 @@ let ticks = 0;
 
 // Reused every tick instead of allocated: offsets from the chopper anchors
 // are static, only x/y need updating as the chopper moves.
-const MUZZLE_HALF = 16 * CHOPPER_SCALE;
-const [MUZZLE_L_X, MUZZLE_L_Y] = CHOPPER_BODY.anchors.muzzleL;
-const [MUZZLE_R_X, MUZZLE_R_Y] = CHOPPER_BODY.anchors.muzzleR;
-const MUZZLES: Muzzle[] = [
-  { x: 0, y: 0, dir: -1 },
-  { x: 0, y: 0, dir: 1 },
-];
+const MOUNT_HALF = 16 * CHOPPER_SCALE;
+const [NOSE_X, NOSE_Y] = CHOPPER_BODY.anchors.nose;
+const [POD_L_X, POD_L_Y] = CHOPPER_BODY.anchors.muzzleL;
+const [POD_R_X, POD_R_Y] = CHOPPER_BODY.anchors.muzzleR;
+const [PYLON_L_X, PYLON_L_Y] = CHOPPER_BODY.anchors.pylonL;
+const [PYLON_R_X, PYLON_R_Y] = CHOPPER_BODY.anchors.pylonR;
+const MOUNTS: Mounts = {
+  nose: { x: 0, y: 0, dir: 1 },
+  podL: { x: 0, y: 0, dir: -1 },
+  podR: { x: 0, y: 0, dir: 1 },
+  pylonL: { x: 0, y: 0, dir: -1 },
+  pylonR: { x: 0, y: 0, dir: 1 },
+};
 
-function muzzles(): Muzzle[] {
-  MUZZLES[0].x = chopper.x - MUZZLE_HALF + MUZZLE_L_X * CHOPPER_SCALE;
-  MUZZLES[0].y = chopper.y - MUZZLE_HALF + MUZZLE_L_Y * CHOPPER_SCALE;
-  MUZZLES[1].x = chopper.x - MUZZLE_HALF + MUZZLE_R_X * CHOPPER_SCALE;
-  MUZZLES[1].y = chopper.y - MUZZLE_HALF + MUZZLE_R_Y * CHOPPER_SCALE;
-  return MUZZLES;
+function updateMounts(): Mounts {
+  MOUNTS.nose.x = chopper.x - MOUNT_HALF + NOSE_X * CHOPPER_SCALE;
+  MOUNTS.nose.y = chopper.y - MOUNT_HALF + NOSE_Y * CHOPPER_SCALE;
+  MOUNTS.podL.x = chopper.x - MOUNT_HALF + POD_L_X * CHOPPER_SCALE;
+  MOUNTS.podL.y = chopper.y - MOUNT_HALF + POD_L_Y * CHOPPER_SCALE;
+  MOUNTS.podR.x = chopper.x - MOUNT_HALF + POD_R_X * CHOPPER_SCALE;
+  MOUNTS.podR.y = chopper.y - MOUNT_HALF + POD_R_Y * CHOPPER_SCALE;
+  MOUNTS.pylonL.x = chopper.x - MOUNT_HALF + PYLON_L_X * CHOPPER_SCALE;
+  MOUNTS.pylonL.y = chopper.y - MOUNT_HALF + PYLON_L_Y * CHOPPER_SCALE;
+  MOUNTS.pylonR.x = chopper.x - MOUNT_HALF + PYLON_R_X * CHOPPER_SCALE;
+  MOUNTS.pylonR.y = chopper.y - MOUNT_HALF + PYLON_R_Y * CHOPPER_SCALE;
+  return MOUNTS;
 }
 
 function update(dt: number): void {
@@ -98,7 +117,9 @@ function update(dt: number): void {
   chopper.x = Math.min(Math.max(chopper.x, chopper.w / 2), WIDTH - chopper.w / 2);
   chopper.y = Math.min(Math.max(chopper.y, chopper.h / 2), HEIGHT - chopper.h / 2);
 
-  if (tickFire(world, fire, muzzles(), input.state.fire, dt)) audio.blip(SFX.shoot);
+  tickRun(run, dt);
+  const f = tickWeapons(world, run, ws, updateMounts(), input.state.fire, dt);
+  if (f) audio.blip(SFX.shoot);
 
   camYSim -= SCROLL_SPEED * dt;
   tickWaves(world, waveRunner, camYSim);
@@ -118,10 +139,12 @@ function update(dt: number): void {
   if (hits.kills > 0) audio.blip(SFX.explode);
   else if (hits.hits > 0) audio.blip(SFX.hit);
 
-  for (const layer of flashLayers) {
-    layer.visible = fire.flashTicks > 0;
-    layer.frame = fire.flashFrame;
+  for (const layer of podFlashLayers) {
+    layer.visible = ws.flashTicks > 0 && run.selected === 2;
+    layer.frame = ws.flashFrame;
   }
+  noseFlashLayer.visible = ws.flashTicks > 0 && run.selected === 1;
+  noseFlashLayer.frame = ws.flashFrame;
   rotorLayer.frame = Math.floor(ticks / 4) % rotorLayer.def.frames.length;
 }
 
