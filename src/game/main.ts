@@ -7,12 +7,13 @@ import { mulberry32 } from '../engine/rng';
 import { drawLayered, prepareLayered, rasterize } from '../engine/sprite';
 import {
   collideBulletsEnemies, createFireControl, createWorld,
-  spawnBoat, tickBullets, tickEnemies, tickFire, tickParticles, type Muzzle,
+  tickBullets, tickEnemies, tickFire, tickParticles, type Muzzle,
 } from './entities';
 import { SFX } from './sfx';
 import { createBoat } from './sprites/boat';
 import { CHOPPER_BODY, createChopper } from './sprites/player';
 import { TRACER } from './sprites/shots';
+import { createWaveRunner, generateWaveScript, LEVEL_LENGTH, SCROLL_SPEED, tickWaves } from './waves';
 
 const SEED = 0xc0ffee; // fixed until start(seed) arrives with the shell seam
 
@@ -34,9 +35,13 @@ const rng = mulberry32(SEED);
 const world = createWorld(rng);
 const fire = createFireControl();
 
-// Interim spawn cadence (milestone 7's waves.ts replaces this): boats drop
-// in from above on a fixed 1.5s cadence. No camera yet, so camY is 0.
-let spawnTimer = 1.5;
+// Seeded Level 1 wave script (milestone 7). The sandbox has no camera/scene
+// yet (Task 16 adds the TOP scene), so we simulate a camera sweeping from
+// the top of the level strip down to 0 and translate spawned entities into
+// screen space by hand below.
+const waveScript = generateWaveScript(mulberry32(SEED), LEVEL_LENGTH);
+const waveRunner = createWaveRunner(waveScript);
+let camYSim = LEVEL_LENGTH - HEIGHT;
 // Reused every tick instead of allocated: mutated in place from the
 // chopper's current position for the new camera-relative signatures.
 const PLAYER_POS = { x: 0, y: 0 };
@@ -91,11 +96,15 @@ function update(dt: number): void {
   chopper.y = Math.min(Math.max(chopper.y, chopper.h / 2), HEIGHT - chopper.h / 2);
 
   if (tickFire(world, fire, muzzles(), input.state.fire, dt)) audio.blip(SFX.shoot);
-  spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    spawnTimer = 1.5;
-    spawnBoat(world, 24 + rng() * (WIDTH - 48), -16);
-  }
+
+  camYSim -= SCROLL_SPEED * dt;
+  tickWaves(world, waveRunner, camYSim);
+  // temporary until Task 16: no scene/camera yet, so newly spawned entities
+  // (world-space, y = atY) are translated into the sandbox's screen space
+  // by hand, once, right after they spawn.
+  world.enemies.forEachAlive((e) => { if (e.age === 0) e.pos.y -= camYSim; });
+  world.pickups.forEachAlive((p) => { if (p.age === 0) p.pos.y -= camYSim; });
+
   PLAYER_POS.x = chopper.x;
   PLAYER_POS.y = chopper.y;
   tickBullets(world, dt, 0);
