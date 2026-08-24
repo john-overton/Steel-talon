@@ -32,7 +32,7 @@ Inside is a single beautifully drawn pixel-art scene with clickable hotspots:
 - **The score wall**: leaderboards posted between the restroom doors, updated automatically.
 - **The game room**: rows of cabinets, pinball, race games, arcade games, each one a hotspot. Attract-mode sounds bleed from cabinets on hover. 8-bit music, cozy retro vibe.
 
-**Cabinet presentation:** games render at a fixed 640x480 inside illustrated cabinet art, bezel, marquee, and coin slot around the screen. Maximize goes fullscreen with integer scaling and black bars. Optional CRT scanlines. Playing a game should feel like standing at the machine.
+**Cabinet presentation:** games render at a fixed 640x480 inside illustrated cabinet art, bezel, marquee, and coin slot around the screen. Maximize goes fullscreen with largest-fit pixel scaling and black bars. Optional CRT scanlines. Playing a game should feel like standing at the machine.
 
 Everything above is static art plus hotspots. It ships in weeks, works on mobile, and delivers nearly all of the vibe of a walkable world at a fraction of the cost.
 
@@ -79,7 +79,7 @@ Applies to Steel Talon first and every future cabinet after:
 
 - **Hand-rolled, no engine.** Plain TypeScript, Canvas 2D, Web Audio. The engine layer is ~600 readable lines and gets reused for every cabinet. Understanding beats velocity; velocity follows anyway.
 - **Assets are code.** Sprites are pixel-string grids indexing a 32-color palette, rasterized at boot. Sound is synthesized: oscillator SFX and a four-channel NES-layout sequencer for music. No asset files exist. The entire game is diffable plain text.
-- **The 640x480 contract.** Every game renders to a fixed 640x480 buffer, integer-scaled to the display. This is what makes the cabinet framing, fullscreen, and future CRT shader trivially consistent across all cabinets.
+- **The 640x480 contract.** Every game renders to a fixed 640x480 buffer, pixel-scaled to the display. This is what makes the cabinet framing, fullscreen, and future CRT shader trivially consistent across all cabinets.
 - **Piece by piece.** Built in small runnable milestones, each understood before the next. No vibe-coded ensembles. The point is a codebase John can hold in his head.
 - **The shell interface is thin.** Each game exposes start(seed) and emits gameover(score, salvage). The arcade wraps games; it never reaches inside them. Token checks, leaderboards, and rentals all hang off that seam.
 
