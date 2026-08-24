@@ -74,9 +74,9 @@ export interface TopDeps {
 
 export type Overlay = 'playing' | 'complete' | 'gameover';
 
-const SPEED = 180;
+const SPEED = 360;
 const SQRT1_2 = Math.SQRT1_2;
-const PLAYER_RADIUS = 10;
+const PLAYER_RADIUS = 20;
 const CHOPPER_HALF = 16; // CHOPPER_BODY is 32x32, scale 1
 const OUTRO_TICKS = 300; // 5s at 60Hz
 const TALLY_TICKS = 120; // 2s roll-up

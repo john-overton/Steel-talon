@@ -5,22 +5,22 @@
 import { CAM_MARGIN, spawnBoat, spawnDelta, spawnPickup, type World } from './entities';
 import { HEIGHT, WIDTH } from '../engine/renderer';
 
-export const SCROLL_SPEED = 60; // px/s, camera scroll rate
-export const LEVEL_LENGTH = 11_280; // px: HEIGHT + 180 s * 60 px/s
+export const SCROLL_SPEED = 120; // px/s, camera scroll rate
+export const LEVEL_LENGTH = 22_080; // px: HEIGHT + 180 s * 120 px/s
 
 export type SpawnKind = 'boat' | 'delta' | 'missileCrate' | 'minigunPickup' | 'rocketPickup';
 
 export interface SpawnEvent { atY: number; kind: SpawnKind; x: number; }
 
-const LANE_MIN = 24;
-const LANE_MAX = WIDTH - 24;
+const LANE_MIN = 48;
+const LANE_MAX = WIDTH - 48;
 
 function clampX(x: number): number {
   return Math.min(LANE_MAX, Math.max(LANE_MIN, x));
 }
 
 function laneX(rng: () => number): number {
-  return 24 + rng() * (WIDTH - 48);
+  return LANE_MIN + rng() * (LANE_MAX - LANE_MIN);
 }
 
 export function generateWaveScript(rng: () => number, levelLength: number): SpawnEvent[] {

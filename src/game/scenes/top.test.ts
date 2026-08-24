@@ -37,7 +37,7 @@ describe('top scene', () => {
     scene.enter();
     const y0 = camera.y;
     for (let i = 0; i < 60; i++) scene.update(DT);
-    expect(camera.y).toBeCloseTo(y0 - 60, 0);
+    expect(camera.y).toBeCloseTo(y0 - 120, 0);
   });
 
   it('a full 3-minute run reaches the outro and exits ~5s later', () => {

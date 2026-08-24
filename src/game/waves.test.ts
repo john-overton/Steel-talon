@@ -39,8 +39,8 @@ describe('generateWaveScript', () => {
 
   it('all x positions are inside the lane', () => {
     for (const e of script) {
-      expect(e.x).toBeGreaterThanOrEqual(24);
-      expect(e.x).toBeLessThanOrEqual(616);
+      expect(e.x).toBeGreaterThanOrEqual(48);
+      expect(e.x).toBeLessThanOrEqual(592);
     }
   });
 
@@ -53,8 +53,8 @@ describe('generateWaveScript', () => {
 
   it('golden: seed 0xc0ffee script shape is pinned', () => {
     expect(script.length).toBe(66);
-    expect(script[0]).toEqual({ atY: 10585.463018996641, kind: 'boat', x: 418.3371179960668 });
-    expect(script[script.length - 1]).toEqual({ atY: 846.4072363842279, kind: 'delta', x: 33.714257929474115 });
+    expect(script[0]).toEqual({ atY: 21170.926037993282, kind: 'boat', x: 410.3638381585479 });
+    expect(script[script.length - 1]).toEqual({ atY: 1692.8144727684557, kind: 'delta', x: 56.92661539465189 });
   });
 });
 
