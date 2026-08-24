@@ -14,12 +14,13 @@ const input = createInput();
 input.attach(window);
 
 const SPEED = 180; // pixels per second
+const CHOPPER_SCALE = 2; // sprite data stays 16x16; drawn at 2x (smoothing off keeps it crisp)
 const chopperCanvases = CHOPPER_FRAMES.map(rasterize);
 const chopper = {
   x: WIDTH / 2,
   y: HEIGHT / 2,
-  w: CHOPPER_FRAMES[0].width,
-  h: CHOPPER_FRAMES[0].height,
+  w: CHOPPER_FRAMES[0].width * CHOPPER_SCALE,
+  h: CHOPPER_FRAMES[0].height * CHOPPER_SCALE,
 };
 let ticks = 0;
 
@@ -46,6 +47,8 @@ function render(): void {
     chopperCanvases[frameIndex],
     Math.round(chopper.x - chopper.w / 2),
     Math.round(chopper.y - chopper.h / 2),
+    chopper.w,
+    chopper.h,
   );
   ctx.fillStyle = '#9badb7';
   ctx.font = '10px monospace';
