@@ -59,4 +59,14 @@ describe('title scene flow', () => {
     expect(seq.played).toHaveLength(2); // music starts again, no game start
     expect(starts()).toBe(1);
   });
+
+  it('enter() drains a stale anyKey latch so the first update does not auto-start', () => {
+    const { input, seq, scene } = makeScene();
+    // Simulate a latch left over from the key that ended the previous run,
+    // set before enter() runs (mirrors returning to the title mid-frame).
+    input.onKey('KeyQ', true);
+    scene.enter();
+    scene.update(1 / 60);
+    expect(seq.played).toHaveLength(0);
+  });
 });

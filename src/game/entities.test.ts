@@ -267,6 +267,7 @@ describe('enemy behaviors', () => {
     expect(speed).toBeCloseTo(140, 1);
     expect(b.vel.x).toBeGreaterThan(0); // aimed right-down toward (200,300)
     expect(b.vel.y).toBeGreaterThan(0);
+    expect(b.radius).toBe(2);
     expect(boat.fireTimer).toBeGreaterThan(1.9); // reset
   });
 
@@ -293,6 +294,7 @@ describe('enemy behaviors', () => {
     expect(d.hasFired).toBe(true);
     const b = w.enemyBullets.items.find((x) => x.alive)!;
     expect(b.vel).toEqual({ x: 0, y: 200 });
+    expect(b.radius).toBe(2);
   });
 });
 

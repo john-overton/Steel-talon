@@ -123,13 +123,19 @@ export function createSequencer(audio: AudioSystem): Sequencer {
         const songStart = ctx.currentTime + SCHEDULE_LATENCY_SEC;
         let scheduledUntil = songStart;
         timer = setInterval(() => {
-          const windowFrom = scheduledUntil - songStart;
+          // While the context is suspended, ctx.currentTime is frozen, so
+          // scheduledUntil (tracked from prior ticks) can trail behind it
+          // indefinitely. Clamp windowFrom to ctx.currentTime so a resume
+          // doesn't burst-schedule the whole stalled backlog at once —
+          // never-played past notes are dropped instead.
+          const windowFrom = Math.max(scheduledUntil, ctx.currentTime) - songStart;
           const windowTo = ctx.currentTime + LOOKAHEAD_SEC - songStart;
+          if (windowTo <= windowFrom) return;
           const notes = scheduleWindow(song, windowFrom, windowTo);
           for (const note of notes) {
             scheduleVoice({ ...note, atSec: note.atSec + songStart }, ctx);
           }
-          scheduledUntil = ctx.currentTime + LOOKAHEAD_SEC;
+          scheduledUntil = Math.max(scheduledUntil, ctx.currentTime + LOOKAHEAD_SEC);
         }, TICK_MS);
       };
 

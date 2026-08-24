@@ -94,7 +94,10 @@ interface PreparedAssets {
   hud: ReturnType<typeof createHud>;
 }
 
-export function createTopScene(deps: TopDeps): Scene {
+// The extra accessor is a minimal read-only test seam (playerPos itself
+// is a closure-private, reused object — never allocated per tick, never
+// exposed for mutation) so tests can assert the chopper rides the scroll.
+export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number } {
   // Reused closure-level objects — no per-tick allocation.
   const playerPos = { x: 0, y: 0 };
   const MOUNTS: Mounts = {
@@ -177,11 +180,16 @@ export function createTopScene(deps: TopDeps): Scene {
     return prepared;
   }
 
+  // collectSalvage() already banks +25/salvage into run.score, so the
+  // tally target must match run.score exactly — no double count.
   function tallyTarget(): number {
-    return state.run.score + state.run.salvage * 25;
+    return state.run.score;
   }
 
   return {
+    debugPlayerY() {
+      return playerPos.y;
+    },
     enter() {
       state.rng = deps.makeRng();
       state.world = createWorld(state.rng);
@@ -226,8 +234,13 @@ export function createTopScene(deps: TopDeps): Scene {
         state.ticks++;
         tickRun(run, dt);
 
-        // Scroll.
+        // Scroll. Ride the frame: apply the camera's actual delta (clamped
+        // at 0, same as camera.y itself) to the player before input moves
+        // them, so a hands-off chopper holds its screen position instead
+        // of drifting toward the bottom as the world scrolls up under it.
+        const prevCamY = camera.y;
         camera.y = Math.max(0, camera.y - SCROLL_SPEED * dt);
+        playerPos.y += camera.y - prevCamY;
 
         // Move player.
         let dx = 0;

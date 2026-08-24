@@ -51,6 +51,15 @@ describe('top scene', () => {
     expect(exits).toHaveLength(1);
   }, 30_000);
 
+  it('the chopper rides the scroll: screen-relative y holds with no input', () => {
+    const { camera, scene } = makeScene();
+    scene.enter();
+    const screenY0 = scene.debugPlayerY() - camera.y;
+    for (let i = 0; i < 300; i++) scene.update(DT);
+    const screenY1 = scene.debugPlayerY() - camera.y;
+    expect(screenY1).toBeCloseTo(screenY0, 5);
+  });
+
   it('re-entering starts a fresh run with the same seed → same script', () => {
     const { camera, scene } = makeScene();
     scene.enter();

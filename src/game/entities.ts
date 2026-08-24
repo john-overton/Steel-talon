@@ -204,7 +204,7 @@ export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): v
           const dx = player.x - e.pos.x;
           const dy = player.y - e.pos.y;
           const dist = Math.hypot(dx, dy);
-          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0;
+          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 2;
           if (dist === 0) {
             b.vel.x = 0; b.vel.y = BOAT_SHOT_SPEED;
           } else {
@@ -218,7 +218,7 @@ export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): v
       if (!e.hasFired && Math.abs(player.y - e.pos.y) < DELTA_SHOT_RANGE) {
         const b = w.enemyBullets.spawn();
         if (b) {
-          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0;
+          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 2;
           b.vel.x = 0; b.vel.y = 200;
         }
         e.hasFired = true;

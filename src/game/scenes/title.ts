@@ -30,6 +30,9 @@ export function createTitleScene(deps: TitleDeps): Scene {
       ticks = 0;
       started = false;
       bgY = 0;
+      // Drain any stale anyKey latch (e.g. the key that ended the previous
+      // run) so the first update() here doesn't auto-advance the flow.
+      deps.input.consumeAnyKey();
       // Audio context may not exist yet; unlock is wired globally elsewhere.
     },
     update(dt) {
