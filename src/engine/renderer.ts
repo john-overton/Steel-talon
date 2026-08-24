@@ -1,12 +1,14 @@
 // 640x480 back-buffer contract: all game drawing targets `ctx`; present()
-// scales to the screen canvas by the largest integer that fits, letterboxed.
+// scales to the screen canvas by the largest fractional fill that fits,
+// letterboxed (smoothing stays off — pixelated look, slightly uneven pixel
+// rows accepted at non-integer scales).
 export const WIDTH = 640;
 export const HEIGHT = 480;
 
 export interface Presentation { scale: number; x: number; y: number }
 
 export function computePresentation(screenW: number, screenH: number): Presentation {
-  const scale = Math.max(1, Math.floor(Math.min(screenW / WIDTH, screenH / HEIGHT)));
+  const scale = Math.min(screenW / WIDTH, screenH / HEIGHT);
   return {
     scale,
     x: (screenW - WIDTH * scale) / 2,

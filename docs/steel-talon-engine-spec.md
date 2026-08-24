@@ -19,11 +19,11 @@
 
 ## 2. Rendering: The 640x480 Contract
 
-One rule everything obeys: **the game only ever draws to a 640x480 offscreen buffer.** The visible canvas scales that buffer up by the largest integer that fits the window, with smoothing off, so pixels stay square and crisp.
+One rule everything obeys: **the game only ever draws to a 640x480 offscreen buffer.** The visible canvas scales that buffer up (or down) by the largest fractional fill that fits the window, with smoothing off, so pixels stay crisp (non-integer scales accept slightly uneven pixel rows in exchange for filling the window).
 
 ```
 Game code → backBuffer (640x480, fixed forever)
-                → screen canvas (integer scaled: x1, x2, x3..., letterboxed)
+                → screen canvas (largest-fit fractional scale, letterboxed)
 ```
 
 ```ts
@@ -33,8 +33,8 @@ const bctx = buf.getContext('2d')!;
 bctx.imageSmoothingEnabled = false;
 
 function present(screen: CanvasRenderingContext2D) {
-  const scale = Math.max(1, Math.floor(Math.min(
-    screen.canvas.width / 640, screen.canvas.height / 480)));
+  const scale = Math.min(
+    screen.canvas.width / 640, screen.canvas.height / 480);
   const x = (screen.canvas.width - 640 * scale) / 2;
   const y = (screen.canvas.height - 480 * scale) / 2;
   screen.imageSmoothingEnabled = false;
@@ -42,7 +42,7 @@ function present(screen: CanvasRenderingContext2D) {
 }
 ```
 
-- Fullscreen "maximize" is free: same buffer, bigger integer scale, black bars.
+- Fullscreen "maximize" is free: same buffer, bigger fractional scale, black bars.
 - The arcade-cabinet bezel later is just DOM around the canvas. The game never knows.
 - Optional CRT scanline pass is one extra drawImage of a pre-generated overlay. Deferred.
 
@@ -190,7 +190,7 @@ Each milestone is small, runnable, and understandable before the next. Nothing d
 
 | # | Milestone | You'll understand | Size |
 |---|---|---|---|
-| 1 ✅ | Black 640x480 canvas, integer scaling, FPS counter | The render contract | ~80 lines |
+| 1 ✅ | Black 640x480 canvas, largest-fit fractional scaling, FPS counter | The render contract | ~80 lines |
 | 2 ✅ | Fixed-timestep loop, moving test rect via keyboard | Loop and input | ~120 lines |
 | 3 ✅ | sprite() rasterizer, palette, chopper on screen, animated rotor | Procedural art pipeline | ~150 lines |
 | 4 ✅ | Bullets with pooling, fire rate, screen bounds | Entities and pools | ~120 lines |

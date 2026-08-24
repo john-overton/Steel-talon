@@ -49,7 +49,7 @@ Two layers with a hard boundary:
 
 Load-bearing invariants (from the engine spec — violating any of these is a bug):
 
-- **The 640x480 contract.** All drawing targets a fixed 640x480 offscreen buffer, presented with integer scaling and smoothing off. Game code never knows the real window size.
+- **The 640x480 contract.** All drawing targets a fixed 640x480 offscreen buffer, presented with largest-fit (fractional) scaling and smoothing off. Game code never knows the real window size.
 - **Fixed 60Hz timestep.** Update logic is deterministic and frame-rate independent. Render is decoupled.
 - **Determinism.** All gameplay randomness goes through the seeded PRNG (mulberry32). Never `Math.random()`, `Date.now()`, or `performance.now()` inside update logic — seeded runs must replay identically.
 - **Assets are code.** Sprites are pixel-string grids indexing the single ≤32-color palette (`game/palette.ts`), rasterized once at boot. Audio is synthesized (oscillator SFX + 4-channel sequencer). No image or sound files, ever. Total payload target < 200KB.

@@ -15,7 +15,7 @@ Two directories, one boundary: `src/engine/` never imports from `src/game/`.
 
 ## Rendering: the 640x480 contract
 
-`src/engine/renderer.ts` owns the fixed back buffer. `createRenderer(screen)` creates a hidden `<canvas>` sized 640x480 (`WIDTH`, `HEIGHT`) with `imageSmoothingEnabled = false`; game code draws only to its `ctx`. `resize()` sets the visible `screen` canvas to `window.innerWidth`/`innerHeight`. `present()` calls `computePresentation(screenW, screenH)`, which picks the largest integer scale that fits both dimensions and centers the result (letterbox), then blits the back buffer onto the screen canvas with smoothing off.
+`src/engine/renderer.ts` owns the fixed back buffer. `createRenderer(screen)` creates a hidden `<canvas>` sized 640x480 (`WIDTH`, `HEIGHT`) with `imageSmoothingEnabled = false`; game code draws only to its `ctx`. `resize()` sets the visible `screen` canvas to `window.innerWidth`/`innerHeight`. `present()` calls `computePresentation(screenW, screenH)`, which picks the largest fractional scale that fits both dimensions (no longer floored to an integer — a window smaller than 640x480 scales down instead of cropping) and centers the result (letterbox), then blits the back buffer onto the screen canvas with smoothing off.
 
 `Renderer` also exposes `camera: { x, y }` — the world-space view origin. The renderer never applies it; the active scene owns and resets it (TOP sets `camera.x = 0`, `camera.y = LEVEL_LENGTH - HEIGHT` on `enter()` and scrolls `camera.y` down each tick), and all game draw code subtracts it (`draw at pos - camera`).
 
@@ -139,7 +139,7 @@ Pure data plus pure mutators, no engine imports: `RunState { score, lives, hp, s
 
 ## Testing
 
-Tests are colocated with their source as `*.test.ts` and run with Vitest. 177 tests pass across 26 files. Pure logic (`computePresentation`, `parseGrid`, `layerOffsets`, the loop's accumulator math, input binding, `mulberry32`, `circlesOverlap`, `blipEnvelope`, `visibleRange`, `pickWaterTile`, `scheduleWindow`, `generateWaveScript`/`tickWaves`, every `run.ts`/`weapons.ts`/`hud.ts` function, every `entities.ts` system) is tested headlessly with fixed seeds, fixed inputs, and synthetic timestamps. Canvas-, Web Audio-, and `requestAnimationFrame`-dependent code (`rasterize`, `createRenderer`, `AudioContext` construction, the `main.ts` render loop) stays thin and is verified visually/audibly in the dev server rather than under test.
+Tests are colocated with their source as `*.test.ts` and run with Vitest. 178 tests pass across 26 files. Pure logic (`computePresentation`, `parseGrid`, `layerOffsets`, the loop's accumulator math, input binding, `mulberry32`, `circlesOverlap`, `blipEnvelope`, `visibleRange`, `pickWaterTile`, `scheduleWindow`, `generateWaveScript`/`tickWaves`, every `run.ts`/`weapons.ts`/`hud.ts` function, every `entities.ts` system) is tested headlessly with fixed seeds, fixed inputs, and synthetic timestamps. Canvas-, Web Audio-, and `requestAnimationFrame`-dependent code (`rasterize`, `createRenderer`, `AudioContext` construction, the `main.ts` render loop) stays thin and is verified visually/audibly in the dev server rather than under test.
 
 ## TypeScript configuration
 

@@ -11,19 +11,30 @@ describe('computePresentation', () => {
     expect(computePresentation(640, 480)).toEqual({ scale: 1, x: 0, y: 0 });
   });
 
-  it('picks the largest integer scale that fits', () => {
-    expect(computePresentation(1920, 1080).scale).toBe(2); // 1080/480 = 2.25 → 2
-    expect(computePresentation(1280, 960).scale).toBe(2);
-    expect(computePresentation(3840, 2160).scale).toBe(4);
+  it('picks the largest fractional scale that fits', () => {
+    expect(computePresentation(1920, 1080).scale).toBeCloseTo(1080 / 480, 10); // 2.25
+    expect(computePresentation(1280, 960).scale).toBeCloseTo(2, 10);
+    expect(computePresentation(3840, 2160).scale).toBeCloseTo(2160 / 480, 10); // 4.5
+    expect(computePresentation(1504, 812).scale).toBeCloseTo(812 / 480, 10); // ≈1.6917
   });
 
-  it('never goes below 1x even when the window is smaller', () => {
-    expect(computePresentation(320, 240).scale).toBe(1);
+  it('scales below 1x when the window is smaller than the buffer', () => {
+    const p = computePresentation(320, 240);
+    expect(p.scale).toBeCloseTo(0.5, 10);
+    expect(p.x).toBeCloseTo(0, 10);
+    expect(p.y).toBeCloseTo(0, 10);
   });
 
   it('centers with letterbox offsets', () => {
-    const p = computePresentation(1920, 1080); // 2x → 1280x960 image
-    expect(p.x).toBe((1920 - 1280) / 2);
-    expect(p.y).toBe((1080 - 960) / 2);
+    const p = computePresentation(1920, 1080); // 2.25x → 1440x1080 image
+    expect(p.x).toBeCloseTo((1920 - 1440) / 2, 10);
+    expect(p.y).toBeCloseTo((1080 - 1080) / 2, 10);
+  });
+
+  it('letterboxes on x only for a wide window (1504x812)', () => {
+    const p = computePresentation(1504, 812);
+    const scale = 812 / 480;
+    expect(p.y).toBeCloseTo(0, 10);
+    expect(p.x).toBeCloseTo((1504 - WIDTH * scale) / 2, 10);
   });
 });
