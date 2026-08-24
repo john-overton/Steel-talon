@@ -109,7 +109,7 @@ export function tickWeapons(
       ws.shotCount++;
       spawnShell(w, { x: mounts.nose.x, y: mounts.nose.y, dir: ws.pylonSide });
       ws.pylonSide = ws.pylonSide === -1 ? 1 : -1;
-      if (ws.shotCount % 3 === 0) spawnSmoke(w, mounts.nose.x, mounts.nose.y + 4, 0.8);
+      if (ws.shotCount % 3 === 0) spawnSmoke(w, mounts.nose.x, mounts.nose.y + 8, 0.8);
       return 'chain';
     }
     case 2: {
@@ -119,7 +119,7 @@ export function tickWeapons(
       ws.shotCount++;
       for (const m of [mounts.podL, mounts.podR]) {
         fireBarrel(w, m, MINIGUN_DMG);
-        if (ws.shotCount % 3 === 0) spawnSmoke(w, m.x, m.y + 4, 0.8);
+        if (ws.shotCount % 3 === 0) spawnSmoke(w, m.x, m.y + 8, 0.8);
       }
       return 'minigun';
     }
