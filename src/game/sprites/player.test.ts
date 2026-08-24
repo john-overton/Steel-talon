@@ -3,6 +3,7 @@ import { layerOffsets } from '../../engine/sprite';
 import {
   CHOPPER_BODY,
   CHOPPER_ROTOR,
+  LAYER,
   MISSILE,
   ROCKET_POD,
   createChopper,
@@ -42,23 +43,36 @@ describe('chopper sprite', () => {
     expect(MISSILE.anchors.mount).toBeDefined();
   });
 
-  it('createChopper stacks body, two rocket pods, then rotor on top', () => {
+  it('createChopper stacks body, pods, rotor, flashes, nose flash, missiles', () => {
     const chopper = createChopper();
-    expect(chopper.layers).toHaveLength(6);
-    expect(chopper.layers[0].def).toBe(CHOPPER_BODY);
-    expect(chopper.layers[1].def).toBe(ROCKET_POD);
-    expect(chopper.layers[2].def).toBe(ROCKET_POD);
-    expect(chopper.layers[3].def).toBe(CHOPPER_ROTOR);
-    expect(chopper.layers[4].def).toBe(MUZZLE_FLASH);
-    expect(chopper.layers[5].def).toBe(MUZZLE_FLASH);
+    expect(chopper.layers).toHaveLength(9);
+    expect(chopper.layers[LAYER.BODY].def).toBe(CHOPPER_BODY);
+    expect(chopper.layers[LAYER.POD_L].def).toBe(ROCKET_POD);
+    expect(chopper.layers[LAYER.POD_R].def).toBe(ROCKET_POD);
+    expect(chopper.layers[LAYER.ROTOR].def).toBe(CHOPPER_ROTOR);
+    expect(chopper.layers[LAYER.FLASH_L].def).toBe(MUZZLE_FLASH);
+    expect(chopper.layers[LAYER.FLASH_R].def).toBe(MUZZLE_FLASH);
+    expect(chopper.layers[LAYER.FLASH_NOSE].def).toBe(MUZZLE_FLASH);
+    expect(chopper.layers[LAYER.FLASH_NOSE].attach).toEqual({ to: 'nose', by: 'mount' });
+    expect(chopper.layers[LAYER.FLASH_NOSE].visible).toBe(false);
+    expect(chopper.layers[LAYER.MISSILE_L].def).toBe(MISSILE);
+    expect(chopper.layers[LAYER.MISSILE_L].attach).toEqual({ to: 'pylonL', by: 'mount' });
+    expect(chopper.layers[LAYER.MISSILE_L].visible).toBe(false);
+    expect(chopper.layers[LAYER.MISSILE_R].def).toBe(MISSILE);
+    expect(chopper.layers[LAYER.MISSILE_R].attach).toEqual({ to: 'pylonR', by: 'mount' });
+    expect(chopper.layers[LAYER.MISSILE_R].visible).toBe(false);
+  });
+
+  it('nose anchor sits on the fuselage centerline', () => {
+    expect(CHOPPER_BODY.anchors.nose).toEqual([15, 10]);
   });
 
   it('muzzle flashes start hidden on the muzzle anchors', () => {
     const chopper = createChopper();
-    expect(chopper.layers[4].visible).toBe(false);
-    expect(chopper.layers[5].visible).toBe(false);
-    expect(chopper.layers[4].attach).toEqual({ to: 'muzzleL', by: 'mount' });
-    expect(chopper.layers[5].attach).toEqual({ to: 'muzzleR', by: 'mount' });
+    expect(chopper.layers[LAYER.FLASH_L].visible).toBe(false);
+    expect(chopper.layers[LAYER.FLASH_R].visible).toBe(false);
+    expect(chopper.layers[LAYER.FLASH_L].attach).toEqual({ to: 'muzzleL', by: 'mount' });
+    expect(chopper.layers[LAYER.FLASH_R].attach).toEqual({ to: 'muzzleR', by: 'mount' });
     expect(CHOPPER_BODY.anchors.muzzleL).toEqual([6, 13]);
     expect(CHOPPER_BODY.anchors.muzzleR).toEqual([25, 13]);
   });
@@ -80,7 +94,7 @@ describe('chopper sprite', () => {
     const offsets = layerOffsets(chopper);
     const hub = CHOPPER_ROTOR.anchors.hub;
     const mast = CHOPPER_BODY.anchors.mast;
-    expect(offsets[3].x + hub[0]).toBe(mast[0]);
-    expect(offsets[3].y + hub[1]).toBe(mast[1]);
+    expect(offsets[LAYER.ROTOR].x + hub[0]).toBe(mast[0]);
+    expect(offsets[LAYER.ROTOR].y + hub[1]).toBe(mast[1]);
   });
 });

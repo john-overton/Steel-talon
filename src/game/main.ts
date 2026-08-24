@@ -11,7 +11,7 @@ import {
 } from './entities';
 import { SFX } from './sfx';
 import { createBoat } from './sprites/boat';
-import { CHOPPER_BODY, createChopper } from './sprites/player';
+import { CHOPPER_BODY, LAYER, createChopper } from './sprites/player';
 import { TRACER } from './sprites/shots';
 import { createWaveRunner, generateWaveScript, LEVEL_LENGTH, SCROLL_SPEED, tickWaves } from './waves';
 
@@ -50,8 +50,11 @@ const SPEED = 180; // pixels per second
 const CHOPPER_SCALE = 1;
 const chopperSprite = createChopper();
 const chopperPrepared = prepareLayered(chopperSprite);
-const rotorLayer = chopperSprite.layers[3];
-const flashLayers = [chopperSprite.layers[4], chopperSprite.layers[5]];
+const rotorLayer = chopperSprite.layers[LAYER.ROTOR];
+const flashLayers = [
+  chopperSprite.layers[LAYER.FLASH_L],
+  chopperSprite.layers[LAYER.FLASH_R],
+];
 const boatPrepared = prepareLayered(createBoat());
 const tracerCanvas = rasterize(TRACER.frames[0]);
 const [TRACER_CX, TRACER_CY] = TRACER.anchors.center;

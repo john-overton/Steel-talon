@@ -30,3 +30,9 @@ export const MUZZLE_FLASH: SpriteDef = {
   ],
   anchors: { mount: [2, 2] },
 };
+
+// 2x5 rocket in flight: white tip, gunmetal body, orange exhaust.
+export const ROCKET: SpriteDef = {
+  frames: [parseGrid(['ll', 'mm', 'mm', 'mm', '55'], PALETTE)],
+  anchors: { center: [1, 2] },
+};

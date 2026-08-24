@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MUZZLE_FLASH, TRACER } from './shots';
+import { MUZZLE_FLASH, ROCKET, TRACER } from './shots';
 
 describe('shot sprites', () => {
   it('tracer is a single 2x4 frame with a center anchor', () => {
@@ -16,5 +16,12 @@ describe('shot sprites', () => {
       expect(f.height).toBe(5);
     }
     expect(MUZZLE_FLASH.anchors.mount).toEqual([2, 2]);
+  });
+
+  it('ROCKET is a 2x5 single frame with a center anchor', () => {
+    expect(ROCKET.frames).toHaveLength(1);
+    expect(ROCKET.frames[0].width).toBe(2);
+    expect(ROCKET.frames[0].height).toBe(5);
+    expect(ROCKET.anchors.center).toEqual([1, 2]);
   });
 });

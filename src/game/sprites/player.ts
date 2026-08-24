@@ -1,8 +1,9 @@
 // Player chopper as a layered sprite: body (airframe, no blades), two
 // rocket pods on wing anchors, rotor blur on the mast anchor, and two
-// muzzle-flash layers on the muzzle anchors (hidden until fired). MISSILE is
-// defined but unattached — a future pickup milestone hangs it on the
-// pylonL/pylonR hardpoint anchors. Palette chars: c = olive, d = dark
+// muzzle-flash layers on the muzzle anchors plus a third on the nose
+// barrel (all hidden until fired), and two MISSILE layers hanging from the
+// pylonL/pylonR hardpoints (hidden until the loadout carries missiles).
+// Layer indices are named by LAYER. Palette chars: c = olive, d = dark
 // olive deck, g = dark blue / j = cyan (canopy glass), m = gunmetal,
 // p = dark gray (pods), r = red (rocket tips), 1 = dark, o = rotor blur.
 import { parseGrid, type LayeredSprite, type SpriteDef } from '../../engine/sprite';
@@ -55,6 +56,7 @@ export const CHOPPER_BODY: SpriteDef = {
     podR: [23, 15],
     muzzleL: [6, 13],
     muzzleR: [25, 13],
+    nose: [15, 10],
     pylonL: [2, 16],
     pylonR: [28, 16],
   },
@@ -67,8 +69,7 @@ export const ROCKET_POD: SpriteDef = {
   anchors: { mount: [0, 0] },
 };
 
-// Hangs from a pylon hardpoint by the top-center of its nose. Not part of
-// createChopper() — attached by a future pickup.
+// Hangs from a pylon hardpoint by the top-center of its nose.
 export const MISSILE: SpriteDef = {
   frames: [parseGrid(['.r.', '.m.', '.m.', '.m.', '1m1'], PALETTE)],
   anchors: { mount: [1, 0] },
@@ -106,6 +107,20 @@ export const CHOPPER_ROTOR: SpriteDef = {
   anchors: { hub: [14, 14] },
 };
 
+// Index of each layer produced by createChopper(). Callers toggle
+// visibility and frames through these names rather than magic numbers.
+export const LAYER = {
+  BODY: 0,
+  POD_L: 1,
+  POD_R: 2,
+  ROTOR: 3,
+  FLASH_L: 4,
+  FLASH_R: 5,
+  FLASH_NOSE: 6,
+  MISSILE_L: 7,
+  MISSILE_R: 8,
+} as const;
+
 export function createChopper(): LayeredSprite {
   return {
     layers: [
@@ -115,6 +130,9 @@ export function createChopper(): LayeredSprite {
       { def: CHOPPER_ROTOR, frame: 0, attach: { to: 'mast', by: 'hub' } },
       { def: MUZZLE_FLASH, frame: 0, attach: { to: 'muzzleL', by: 'mount' }, visible: false },
       { def: MUZZLE_FLASH, frame: 0, attach: { to: 'muzzleR', by: 'mount' }, visible: false },
+      { def: MUZZLE_FLASH, frame: 0, attach: { to: 'nose', by: 'mount' }, visible: false },
+      { def: MISSILE, frame: 0, attach: { to: 'pylonL', by: 'mount' }, visible: false },
+      { def: MISSILE, frame: 0, attach: { to: 'pylonR', by: 'mount' }, visible: false },
     ],
   };
 }
