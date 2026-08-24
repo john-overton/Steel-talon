@@ -2,7 +2,7 @@
 // allocation in the hot loop. Systems are plain functions over a World.
 import { circlesOverlap } from '../engine/collide';
 import { createPool, type Pool } from '../engine/pool';
-import { HEIGHT, WIDTH } from '../engine/renderer';
+import { HEIGHT } from '../engine/renderer';
 import { PALETTE } from './palette';
 
 export interface Vec2 { x: number; y: number; }
@@ -14,6 +14,10 @@ export interface Entity {
   age: number; alive: boolean;
 }
 
+// Camera-relative despawn band: entities die once they scroll this far
+// past the visible 640x480 viewport (above or below camY..camY+HEIGHT).
+export const CAM_MARGIN = 32;
+
 // Particles carry their own draw data so the render pass is one
 // fillRect per particle, no sprite rasterization.
 export interface Particle extends Entity {
@@ -23,8 +27,39 @@ export interface Particle extends Entity {
   life: number;   // seconds until despawn
 }
 
+export interface Bullet extends Entity {
+  kind: 'bullet';
+  dmg: number;
+  splash: boolean;      // on hit, damage enemies within SPLASH_RADIUS by 1
+  homing: boolean;      // steer toward nearest enemy (turn-rate capped)
+  accel: number;        // px/s² along current velocity direction
+  trail: boolean;       // emit smoke every TRAIL_TICKS
+  trailCount: number;
+}
+
+export interface Enemy extends Entity {
+  kind: 'enemy';
+  enemyKind: 'boat' | 'delta';
+  fireTimer: number;    // boats: seconds to next aimed shot
+  baseX: number;        // deltas: weave center
+  hasFired: boolean;    // deltas: single shot latch
+  score: number;
+  salvageChance: number;
+}
+
+export type PickupKind = 'minigun' | 'rockets' | 'crate' | 'salvage';
+
+export interface Pickup extends Entity {
+  kind: 'pickup';
+  pickupKind: PickupKind;
+}
+
 const BULLET_MAX_AGE = 2;
 const PARTICLE_DRAG = 2; // fraction of velocity shed per second
+const HOMING_TURN_RATE = 3.5; // rad/s
+const TRAIL_TICKS = 4;
+const MAGNET_RADIUS = 56;
+const MAGNET_SPEED = 220;
 
 function makeEntity(kind: Entity['kind']): Entity {
   return {
@@ -38,28 +73,101 @@ function makeParticle(): Particle {
   return { ...makeEntity('particle'), kind: 'particle', size: 1, color: PALETTE[21], life: 0 };
 }
 
+function makeBullet(): Bullet {
+  return {
+    ...makeEntity('bullet'), kind: 'bullet',
+    dmg: 1, splash: false, homing: false, accel: 0, trail: false, trailCount: 0,
+  };
+}
+
+function makeEnemy(): Enemy {
+  return {
+    ...makeEntity('enemy'), kind: 'enemy',
+    enemyKind: 'boat', fireTimer: 0, baseX: 0, hasFired: false, score: 0, salvageChance: 0,
+  };
+}
+
+function makePickup(): Pickup {
+  return { ...makeEntity('pickup'), kind: 'pickup', pickupKind: 'salvage' };
+}
+
 export interface World {
-  bullets: Pool<Entity>;
-  enemies: Pool<Entity>;
+  bullets: Pool<Bullet>;
+  enemyBullets: Pool<Entity>;
+  enemies: Pool<Enemy>;
+  pickups: Pool<Pickup>;
   particles: Pool<Particle>;
   rng: () => number;
 }
 
 export function createWorld(rng: () => number): World {
   return {
-    bullets: createPool(64, () => makeEntity('bullet')),
-    enemies: createPool(16, () => makeEntity('enemy')),
+    bullets: createPool(64, makeBullet),
+    enemyBullets: createPool(64, () => makeEntity('bullet')),
+    enemies: createPool(16, makeEnemy),
+    pickups: createPool(16, makePickup),
     particles: createPool(256, makeParticle),
     rng,
   };
 }
 
-export function tickBullets(w: World, dt: number): void {
+function nearestEnemy(w: World, x: number, y: number): Enemy | undefined {
+  let best: Enemy | undefined;
+  let bestDistSq = Infinity;
+  w.enemies.forEachAlive((e) => {
+    const dx = e.pos.x - x;
+    const dy = e.pos.y - y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = e;
+    }
+  });
+  return best;
+}
+
+export function tickBullets(w: World, dt: number, camY: number): void {
   w.bullets.forEachAlive((b) => {
+    if (b.homing) {
+      const target = nearestEnemy(w, b.pos.x, b.pos.y);
+      if (target) {
+        const speed = Math.hypot(b.vel.x, b.vel.y);
+        const current = Math.atan2(b.vel.y, b.vel.x);
+        const desired = Math.atan2(target.pos.y - b.pos.y, target.pos.x - b.pos.x);
+        let diff = desired - current;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const maxTurn = HOMING_TURN_RATE * dt;
+        const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+        const next = current + turn;
+        b.vel.x = Math.cos(next) * speed;
+        b.vel.y = Math.sin(next) * speed;
+      }
+    }
+    if (b.accel !== 0) {
+      const s = Math.hypot(b.vel.x, b.vel.y);
+      if (s !== 0) {
+        const scale = (s + b.accel * dt) / s;
+        b.vel.x *= scale;
+        b.vel.y *= scale;
+      }
+    }
     b.pos.x += b.vel.x * dt;
     b.pos.y += b.vel.y * dt;
     b.age += dt;
-    if (b.pos.y < -8 || b.age > BULLET_MAX_AGE) b.alive = false;
+    if (b.trail && b.trailCount++ % TRAIL_TICKS === 0) spawnTrailSmoke(w, b.pos.x, b.pos.y);
+    if (b.pos.y < camY - CAM_MARGIN || b.pos.y > camY + HEIGHT + CAM_MARGIN || b.age > BULLET_MAX_AGE) {
+      b.alive = false;
+    }
+  });
+}
+
+export function tickEnemyBullets(w: World, dt: number, camY: number): void {
+  w.enemyBullets.forEachAlive((b) => {
+    b.pos.x += b.vel.x * dt;
+    b.pos.y += b.vel.y * dt;
+    b.age += dt;
+    if (b.pos.y < camY - CAM_MARGIN || b.pos.y > camY + HEIGHT + CAM_MARGIN) b.alive = false;
   });
 }
 
@@ -74,12 +182,28 @@ export function tickParticles(w: World, dt: number): void {
   });
 }
 
-export function tickEnemies(w: World, dt: number): void {
+export function tickEnemies(w: World, dt: number, camY: number, _player: Vec2): void {
   w.enemies.forEachAlive((e) => {
     e.pos.x += e.vel.x * dt;
     e.pos.y += e.vel.y * dt;
     e.age += dt;
-    if (e.pos.y > HEIGHT + 16) e.alive = false;
+    if (e.pos.y > camY + HEIGHT + CAM_MARGIN) e.alive = false;
+  });
+}
+
+export function tickPickups(w: World, dt: number, camY: number, player: Vec2): void {
+  w.pickups.forEachAlive((p) => {
+    const dx = player.x - p.pos.x;
+    const dy = player.y - p.pos.y;
+    if (dx * dx + dy * dy < MAGNET_RADIUS * MAGNET_RADIUS) {
+      const dist = Math.hypot(dx, dy) || 1;
+      p.vel.x = (dx / dist) * MAGNET_SPEED;
+      p.vel.y = (dy / dist) * MAGNET_SPEED;
+    }
+    p.pos.x += p.vel.x * dt;
+    p.pos.y += p.vel.y * dt;
+    p.age += dt;
+    if (p.pos.y > camY + HEIGHT + CAM_MARGIN) p.alive = false;
   });
 }
 
@@ -117,6 +241,8 @@ export function tickFire(
       b.pos.x = m.x; b.pos.y = m.y;
       b.vel.x = 0; b.vel.y = -BULLET_SPEED;
       b.hp = 1; b.radius = 2; b.age = 0;
+      b.dmg = 1;
+      b.splash = false; b.homing = false; b.accel = 0; b.trail = false; b.trailCount = 0;
     }
     spawnShell(w, m);
     if (fc.shotCount % 3 === 0) spawnSmoke(w, m.x, m.y + 4, 0.8);
@@ -144,24 +270,58 @@ export function spawnSmoke(w: World, x: number, y: number, life: number): void {
   p.life = life; p.age = 0;
 }
 
-// Interim spawner (milestone 7's waves.ts replaces this): boats drop in
-// from above on a seeded 1.2–2.2 s cadence.
-export interface Spawner { timer: number; }
-
-export function createSpawner(rng: () => number): Spawner {
-  return { timer: 1.2 + rng() };
+export function spawnTrailSmoke(w: World, x: number, y: number): void {
+  const p = w.particles.spawn();
+  if (!p) return;
+  p.pos.x = x; p.pos.y = y;
+  p.vel.x = w.rng() * 8 - 4;
+  p.vel.y = 20;
+  p.size = 1;
+  p.color = PALETTE[24];
+  p.life = 0.4; p.age = 0;
 }
 
-export function tickSpawner(w: World, s: Spawner, dt: number): void {
-  s.timer -= dt;
-  if (s.timer > 0) return;
-  s.timer = 1.2 + w.rng();
+export function spawnBoat(w: World, x: number, y: number): Enemy | undefined {
   const e = w.enemies.spawn();
-  if (!e) return;
-  e.pos.x = 24 + w.rng() * (WIDTH - 48);
-  e.pos.y = -16;
-  e.vel.x = 0; e.vel.y = 60;
+  if (!e) return undefined;
+  e.enemyKind = 'boat';
+  e.pos.x = x; e.pos.y = y;
+  e.vel.x = 0; e.vel.y = 40;
   e.hp = 3; e.radius = 10; e.age = 0;
+  e.fireTimer = 2.0 + w.rng() * 0.8;
+  e.baseX = x; e.hasFired = false;
+  e.score = 100; e.salvageChance = 0.25;
+  return e;
+}
+
+export function spawnDelta(w: World, x: number, y: number): Enemy | undefined {
+  const e = w.enemies.spawn();
+  if (!e) return undefined;
+  e.enemyKind = 'delta';
+  e.pos.x = x; e.pos.y = y;
+  e.vel.x = 0; e.vel.y = 120;
+  e.hp = 2; e.radius = 8; e.age = 0;
+  e.baseX = x; e.hasFired = false; e.fireTimer = 0;
+  e.score = 150; e.salvageChance = 0.40;
+  return e;
+}
+
+const PICKUP_RADIUS: Record<PickupKind, number> = {
+  minigun: 14, rockets: 14, crate: 8, salvage: 6,
+};
+const PICKUP_VY: Record<PickupKind, number> = {
+  minigun: 40, rockets: 40, crate: 45, salvage: 30,
+};
+
+export function spawnPickup(w: World, kind: PickupKind, x: number, y: number): Pickup | undefined {
+  const p = w.pickups.spawn();
+  if (!p) return undefined;
+  p.pickupKind = kind;
+  p.pos.x = x; p.pos.y = y;
+  p.vel.x = 0; p.vel.y = PICKUP_VY[kind];
+  p.radius = PICKUP_RADIUS[kind];
+  p.hp = 0; p.age = 0;
+  return p;
 }
 
 export interface CollisionResult { hits: number; kills: number; }
@@ -179,7 +339,7 @@ export function collideBulletsEnemies(w: World): CollisionResult {
       if (!b.alive) return; // bullet spent earlier in this pass
       if (!circlesOverlap(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, e.radius)) return;
       b.alive = false;
-      e.hp--;
+      e.hp -= b.dmg;
       result.hits++;
       spawnBurst(w, b.pos.x, b.pos.y, 3, 0.3);
       if (e.hp <= 0) {

@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest';
+import { HEIGHT } from '../engine/renderer';
 import { mulberry32 } from '../engine/rng';
 import {
+  CAM_MARGIN,
   collideBulletsEnemies,
   createFireControl,
-  createSpawner,
   createWorld,
   FIRE_INTERVAL,
   FLASH_TICKS,
+  spawnBoat,
+  spawnDelta,
+  spawnPickup,
   spawnSmoke,
   tickBullets,
   tickEnemies,
-  tickSpawner,
+  tickEnemyBullets,
   tickFire,
   tickParticles,
+  tickPickups,
   type Muzzle,
 } from './entities';
 
@@ -22,7 +27,9 @@ describe('world', () => {
   it('creates pools of the specified sizes, all dead', () => {
     const w = createWorld(mulberry32(1));
     expect(w.bullets.items).toHaveLength(64);
+    expect(w.enemyBullets.items).toHaveLength(64);
     expect(w.enemies.items).toHaveLength(16);
+    expect(w.pickups.items).toHaveLength(16);
     expect(w.particles.items).toHaveLength(256);
     expect(w.bullets.countAlive()).toBe(0);
   });
@@ -33,16 +40,16 @@ describe('tickBullets', () => {
     const w = createWorld(mulberry32(1));
     const b = w.bullets.spawn()!;
     b.pos.x = 100; b.pos.y = 100; b.vel.x = 0; b.vel.y = -420; b.age = 0;
-    tickBullets(w, DT);
+    tickBullets(w, DT, 0);
     expect(b.pos.y).toBeCloseTo(100 - 420 * DT);
     expect(b.age).toBeCloseTo(DT);
   });
 
-  it('despawns bullets above the screen', () => {
+  it('despawns bullets above the camera band', () => {
     const w = createWorld(mulberry32(1));
     const b = w.bullets.spawn()!;
-    b.pos.y = -9; b.vel.y = 0;
-    tickBullets(w, DT);
+    b.pos.y = -CAM_MARGIN - 1; b.vel.y = 0;
+    tickBullets(w, DT, 0);
     expect(b.alive).toBe(false);
   });
 
@@ -50,7 +57,7 @@ describe('tickBullets', () => {
     const w = createWorld(mulberry32(1));
     const b = w.bullets.spawn()!;
     b.pos.y = 200; b.vel.y = 0; b.age = 2.01;
-    tickBullets(w, DT);
+    tickBullets(w, DT, 0);
     expect(b.alive).toBe(false);
   });
 });
@@ -70,14 +77,14 @@ describe('tickParticles', () => {
 });
 
 describe('tickEnemies', () => {
-  it('moves enemies and despawns them below the screen', () => {
+  it('moves enemies and despawns them below the camera band', () => {
     const w = createWorld(mulberry32(1));
-    const e = w.enemies.spawn()!;
-    e.pos.x = 320; e.pos.y = 100; e.vel.y = 60;
-    tickEnemies(w, DT);
+    const e = spawnBoat(w, 320, 100)!;
+    e.vel.y = 60;
+    tickEnemies(w, DT, 0, { x: 320, y: 400 });
     expect(e.pos.y).toBeCloseTo(100 + 60 * DT);
-    e.pos.y = 497; // HEIGHT (480) + 16 = 496 threshold
-    tickEnemies(w, DT);
+    e.pos.y = HEIGHT + CAM_MARGIN + 1;
+    tickEnemies(w, DT, 0, { x: 320, y: 400 });
     expect(e.alive).toBe(false);
   });
 });
@@ -177,46 +184,12 @@ describe('spawnSmoke', () => {
   });
 });
 
-describe('spawner', () => {
-  it('spawns boats deterministically for a fixed seed', () => {
-    const rng = mulberry32(7);
-    const w = createWorld(rng);
-    const s = createSpawner(rng);
-    expect(s.timer).toBeGreaterThanOrEqual(1.2);
-    expect(s.timer).toBeLessThan(2.2);
-    for (let i = 0; i < 60 * 10; i++) tickSpawner(w, s, DT); // 10 simulated seconds
-    const alive = w.enemies.countAlive();
-    expect(alive).toBeGreaterThanOrEqual(4); // 10s / 2.2s max interval
-    expect(alive).toBeLessThanOrEqual(9);    // 10s / 1.2s min interval
-    w.enemies.forEachAlive((e) => {
-      expect(e.hp).toBe(3);
-      expect(e.radius).toBe(10);
-      expect(e.vel.y).toBe(60);
-      expect(e.pos.x).toBeGreaterThanOrEqual(24);
-      expect(e.pos.x).toBeLessThanOrEqual(640 - 24);
-    });
-  });
-
-  it('two spawners with the same seed produce identical positions', () => {
-    const runA: number[] = [];
-    const runB: number[] = [];
-    for (const out of [runA, runB]) {
-      const rng = mulberry32(99);
-      const w = createWorld(rng);
-      const s = createSpawner(rng);
-      for (let i = 0; i < 60 * 5; i++) tickSpawner(w, s, DT);
-      w.enemies.forEachAlive((e) => out.push(e.pos.x));
-    }
-    expect(runA).toEqual(runB);
-  });
-});
-
 describe('collideBulletsEnemies', () => {
   function place(w: ReturnType<typeof createWorld>, hp: number) {
     const e = w.enemies.spawn()!;
     e.pos.x = 100; e.pos.y = 100; e.hp = hp; e.radius = 10;
     const b = w.bullets.spawn()!;
-    b.pos.x = 100; b.pos.y = 105; b.radius = 2;
+    b.pos.x = 100; b.pos.y = 105; b.radius = 2; b.dmg = 1;
     return { e, b };
   }
 
@@ -250,5 +223,136 @@ describe('collideBulletsEnemies', () => {
     expect(res).toEqual({ hits: 0, kills: 0 });
     expect(b.alive).toBe(true);
     expect(e.hp).toBe(3);
+  });
+});
+
+describe('typed spawns', () => {
+  it('spawnBoat fills boat fields', () => {
+    const w = createWorld(mulberry32(1));
+    const e = spawnBoat(w, 100, -16);
+    expect(e).toBeDefined();
+    expect(e!.enemyKind).toBe('boat');
+    expect(e!.hp).toBe(3);
+    expect(e!.radius).toBe(10);
+    expect(e!.vel).toEqual({ x: 0, y: 40 });
+    expect(e!.score).toBe(100);
+    expect(e!.salvageChance).toBeCloseTo(0.25);
+    expect(e!.fireTimer).toBeGreaterThanOrEqual(2.0);
+    expect(e!.fireTimer).toBeLessThanOrEqual(2.8);
+  });
+
+  it('spawnDelta fills delta fields', () => {
+    const w = createWorld(mulberry32(1));
+    const e = spawnDelta(w, 200, -16);
+    expect(e!.enemyKind).toBe('delta');
+    expect(e!.hp).toBe(2);
+    expect(e!.baseX).toBe(200);
+    expect(e!.hasFired).toBe(false);
+    expect(e!.vel.y).toBe(120);
+  });
+
+  it('bullet spawn via tickFire resets projectile flags', () => {
+    const w = createWorld(mulberry32(1));
+    const fc = createFireControl();
+    tickFire(w, fc, [{ x: 10, y: 10, dir: -1 }], true, 1 / 60);
+    const b = w.bullets.items.find((x) => x.alive)!;
+    // dirty the flags, kill it, respawn, verify reset
+    b.splash = true; b.homing = true; b.accel = 99; b.trail = true; b.trailCount = 7; b.alive = false;
+    fc.cooldown = 0;
+    tickFire(w, fc, [{ x: 10, y: 10, dir: -1 }], true, 1 / 60);
+    const b2 = w.bullets.items.find((x) => x.alive)!;
+    expect(b2.dmg).toBe(1);
+    expect(b2.splash).toBe(false);
+    expect(b2.homing).toBe(false);
+    expect(b2.accel).toBe(0);
+    expect(b2.trail).toBe(false);
+    expect(b2.trailCount).toBe(0);
+  });
+});
+
+describe('camera-relative bounds', () => {
+  it('bullets despawn above the camera band', () => {
+    const w = createWorld(mulberry32(1));
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 1000 - CAM_MARGIN - 1; b.vel.y = 0; b.age = 0;
+    tickBullets(w, 1 / 60, 1000);
+    expect(b.alive).toBe(false);
+  });
+
+  it('enemies despawn below the camera band', () => {
+    const w = createWorld(mulberry32(1));
+    const e = spawnBoat(w, 100, 1000 + HEIGHT + CAM_MARGIN + 5)!;
+    tickEnemies(w, 1 / 60, 1000, { x: 0, y: 0 });
+    expect(e.alive).toBe(false);
+  });
+
+  it('enemy bullets integrate and despawn outside the band', () => {
+    const w = createWorld(mulberry32(1));
+    const b = w.enemyBullets.spawn()!;
+    b.pos.x = 50; b.pos.y = 500; b.vel.x = 0; b.vel.y = 140; b.age = 0;
+    tickEnemyBullets(w, 1 / 60, 0);
+    expect(b.pos.y).toBeCloseTo(500 + 140 / 60);
+    b.pos.y = HEIGHT + CAM_MARGIN + 1;
+    tickEnemyBullets(w, 1 / 60, 0);
+    expect(b.alive).toBe(false);
+  });
+});
+
+describe('homing, accel, trail', () => {
+  it('acceleration scales speed linearly', () => {
+    const w = createWorld(mulberry32(1));
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 400; b.vel.x = 0; b.vel.y = -120; b.accel = 900; b.age = 0;
+    tickBullets(w, 1 / 60, 0);
+    expect(Math.abs(b.vel.y)).toBeCloseTo(120 + 900 / 60, 3);
+    expect(b.vel.x).toBeCloseTo(0);
+  });
+
+  it('homing turns toward the nearest enemy, capped per tick', () => {
+    const w = createWorld(mulberry32(1));
+    spawnBoat(w, 300, 100);
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.vel.x = 0; b.vel.y = -300; b.homing = true; b.age = 0;
+    const before = Math.atan2(b.vel.y, b.vel.x);
+    tickBullets(w, 1 / 60, 0);
+    const after = Math.atan2(b.vel.y, b.vel.x);
+    const turned = Math.abs(after - before);
+    expect(turned).toBeGreaterThan(0);
+    expect(turned).toBeLessThanOrEqual(3.5 / 60 + 1e-9);
+    expect(Math.hypot(b.vel.x, b.vel.y)).toBeCloseTo(300, 3);
+  });
+
+  it('trail emits one smoke particle every 4 ticks', () => {
+    const w = createWorld(mulberry32(1));
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 300; b.vel.y = -120; b.trail = true; b.trailCount = 0; b.age = 0;
+    for (let i = 0; i < 8; i++) tickBullets(w, 1 / 60, 0);
+    expect(w.particles.countAlive()).toBe(2);
+  });
+});
+
+describe('pickups', () => {
+  it('spawnPickup sets kind-specific radius and drift', () => {
+    const w = createWorld(mulberry32(1));
+    expect(spawnPickup(w, 'minigun', 10, 10)!.radius).toBe(14);
+    expect(spawnPickup(w, 'crate', 10, 10)!.radius).toBe(8);
+    expect(spawnPickup(w, 'salvage', 10, 10)!.radius).toBe(6);
+  });
+
+  it('salvage magnetizes toward a close player', () => {
+    const w = createWorld(mulberry32(1));
+    const p = spawnPickup(w, 'salvage', 100, 100)!;
+    tickPickups(w, 1 / 60, 0, { x: 110, y: 110 }); // within 56px
+    const speed = Math.hypot(p.vel.x, p.vel.y);
+    expect(speed).toBeCloseTo(220, 1);
+    expect(p.vel.x).toBeGreaterThan(0);
+    expect(p.vel.y).toBeGreaterThan(0);
+  });
+
+  it('far pickups keep drifting down', () => {
+    const w = createWorld(mulberry32(1));
+    const p = spawnPickup(w, 'salvage', 100, 100)!;
+    tickPickups(w, 1 / 60, 0, { x: 500, y: 400 });
+    expect(p.vel).toEqual({ x: 0, y: 30 });
   });
 });

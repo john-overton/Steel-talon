@@ -6,8 +6,8 @@ import { createRenderer, HEIGHT, WIDTH } from '../engine/renderer';
 import { mulberry32 } from '../engine/rng';
 import { drawLayered, prepareLayered, rasterize } from '../engine/sprite';
 import {
-  collideBulletsEnemies, createFireControl, createSpawner, createWorld,
-  tickBullets, tickEnemies, tickFire, tickParticles, tickSpawner, type Muzzle,
+  collideBulletsEnemies, createFireControl, createWorld,
+  spawnBoat, tickBullets, tickEnemies, tickFire, tickParticles, type Muzzle,
 } from './entities';
 import { SFX } from './sfx';
 import { createBoat } from './sprites/boat';
@@ -33,7 +33,13 @@ window.addEventListener('keydown', () => audio.unlock());
 const rng = mulberry32(SEED);
 const world = createWorld(rng);
 const fire = createFireControl();
-const spawner = createSpawner(rng);
+
+// Interim spawn cadence (milestone 7's waves.ts replaces this): boats drop
+// in from above on a fixed 1.5s cadence. No camera yet, so camY is 0.
+let spawnTimer = 1.5;
+// Reused every tick instead of allocated: mutated in place from the
+// chopper's current position for the new camera-relative signatures.
+const PLAYER_POS = { x: 0, y: 0 };
 
 const SPEED = 180; // pixels per second
 const CHOPPER_SCALE = 1;
@@ -85,9 +91,15 @@ function update(dt: number): void {
   chopper.y = Math.min(Math.max(chopper.y, chopper.h / 2), HEIGHT - chopper.h / 2);
 
   if (tickFire(world, fire, muzzles(), input.state.fire, dt)) audio.blip(SFX.shoot);
-  tickSpawner(world, spawner, dt);
-  tickBullets(world, dt);
-  tickEnemies(world, dt);
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    spawnTimer = 1.5;
+    spawnBoat(world, 24 + rng() * (WIDTH - 48), -16);
+  }
+  PLAYER_POS.x = chopper.x;
+  PLAYER_POS.y = chopper.y;
+  tickBullets(world, dt, 0);
+  tickEnemies(world, dt, 0, PLAYER_POS);
   tickParticles(world, dt);
 
   const hits = collideBulletsEnemies(world);
