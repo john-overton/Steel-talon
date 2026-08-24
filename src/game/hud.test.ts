@@ -24,9 +24,9 @@ describe('slotView', () => {
 });
 
 describe('LIVES_ICON', () => {
-  it('is a single 8x8 frame', () => {
+  it('is a single 16x16 frame', () => {
     expect(LIVES_ICON.frames).toHaveLength(1);
-    expect(LIVES_ICON.frames[0].width).toBe(8);
-    expect(LIVES_ICON.frames[0].height).toBe(8);
+    expect(LIVES_ICON.frames[0].width).toBe(16);
+    expect(LIVES_ICON.frames[0].height).toBe(16);
   });
 });

@@ -26,18 +26,29 @@ export function slotView(r: RunState, slot: WeaponSlot): SlotView {
   return { owned: ownsSlot(r, slot), selected: r.selected === slot, label: String(slot) };
 }
 
+// 16x16 mini-chopper seen from above: olive fuselage with a dark outline,
+// gray main rotor (forward blade arm plus the full-width bar through the
+// hub) and a gray tail rotor.
 export const LIVES_ICON: SpriteDef = {
   frames: [parseGrid([
-    'oooooooo',
-    '...cc...',
-    '..cccc..',
-    '..cccc..',
-    '...cc...',
-    '...cc...',
-    '..1cc1..',
-    '...cc...',
+    '.......oo.......',
+    '.......oo.......',
+    '......1cc1......',
+    '.....1cccc1.....',
+    '.....1cccc1.....',
+    '....1cccccc1....',
+    'oooo1ccoocc1oooo',
+    'oooo1ccoocc1oooo',
+    '....1cccccc1....',
+    '.....1cccc1.....',
+    '......1cc1......',
+    '......1cc1......',
+    '.......cc.......',
+    '.......cc.......',
+    '.....oo11oo.....',
+    '................',
   ], PALETTE)],
-  anchors: { center: [4, 4] },
+  anchors: { center: [8, 8] },
 };
 
 // Layout constants (640x480 buffer).
@@ -49,11 +60,13 @@ const PIP_Y = 18;
 const PIP_SIZE = 6;
 const PIP_X0 = 4;
 const PIP_STEP = 8;
+// Lives sit centered along the top: 16px icons on a 22px pitch, so three
+// span 60px around the buffer midline, clear of the score and salvage text.
 const LIVES_Y = 4;
-const LIVES_X0 = WIDTH / 2 - 18;
-const LIVES_STEP = 14;
+const LIVES_X0 = WIDTH / 2 - 33;
+const LIVES_STEP = 22;
 const SALVAGE_X = WIDTH - 4;
-const PANEL_Y = HEIGHT - 28;
+const PANEL_Y = HEIGHT - 30;
 const BOX_X0 = 4;
 const BOX_STEP = 26;
 const BOX_SIZE = 22;
