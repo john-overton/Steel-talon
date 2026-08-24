@@ -182,11 +182,49 @@ export function tickParticles(w: World, dt: number): void {
   });
 }
 
-export function tickEnemies(w: World, dt: number, camY: number, _player: Vec2): void {
+const BOAT_SHOT_SPEED = 140;
+const DELTA_SHOT_RANGE = 220;
+
+export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): void {
   w.enemies.forEachAlive((e) => {
-    e.pos.x += e.vel.x * dt;
-    e.pos.y += e.vel.y * dt;
     e.age += dt;
+    if (e.enemyKind === 'delta') {
+      e.pos.x = e.baseX + Math.sin(e.age * 2.2) * 28;
+      e.pos.y += e.vel.y * dt;
+    } else {
+      e.pos.x += e.vel.x * dt;
+      e.pos.y += e.vel.y * dt;
+    }
+
+    if (e.enemyKind === 'boat') {
+      e.fireTimer -= dt;
+      if (e.fireTimer <= 0 && e.pos.y >= camY && e.pos.y <= camY + HEIGHT) {
+        const b = w.enemyBullets.spawn();
+        if (b) {
+          const dx = player.x - e.pos.x;
+          const dy = player.y - e.pos.y;
+          const dist = Math.hypot(dx, dy);
+          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0;
+          if (dist === 0) {
+            b.vel.x = 0; b.vel.y = BOAT_SHOT_SPEED;
+          } else {
+            b.vel.x = (dx / dist) * BOAT_SHOT_SPEED;
+            b.vel.y = (dy / dist) * BOAT_SHOT_SPEED;
+          }
+        }
+        e.fireTimer = 2.0 + w.rng() * 0.8;
+      }
+    } else if (e.enemyKind === 'delta') {
+      if (!e.hasFired && Math.abs(player.y - e.pos.y) < DELTA_SHOT_RANGE) {
+        const b = w.enemyBullets.spawn();
+        if (b) {
+          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0;
+          b.vel.x = 0; b.vel.y = 200;
+        }
+        e.hasFired = true;
+      }
+    }
+
     if (e.pos.y > camY + HEIGHT + CAM_MARGIN) e.alive = false;
   });
 }
@@ -324,33 +362,95 @@ export function spawnPickup(w: World, kind: PickupKind, x: number, y: number): P
   return p;
 }
 
-export interface CollisionResult { hits: number; kills: number; }
+export const SPLASH_RADIUS = 24;
+
+export interface CollisionResult { hits: number; kills: number; score: number; }
 
 // Reused across calls to avoid a per-tick allocation; callers must not
 // retain the returned reference past their next call to this function.
-const collisionResult: CollisionResult = { hits: 0, kills: 0 };
+const collisionResult: CollisionResult = { hits: 0, kills: 0, score: 0 };
+
+function killEnemy(w: World, e: Enemy, result: CollisionResult): void {
+  e.alive = false;
+  result.kills++;
+  result.score += e.score;
+  spawnBurst(w, e.pos.x, e.pos.y, 12, 0.5);
+  for (let i = 0; i < 4; i++) spawnSmoke(w, e.pos.x, e.pos.y, 1.2);
+  if (w.rng() < e.salvageChance) spawnPickup(w, 'salvage', e.pos.x, e.pos.y);
+}
 
 export function collideBulletsEnemies(w: World): CollisionResult {
   const result = collisionResult;
   result.hits = 0;
   result.kills = 0;
+  result.score = 0;
   w.bullets.forEachAlive((b) => {
     w.enemies.forEachAlive((e) => {
       if (!b.alive) return; // bullet spent earlier in this pass
       if (!circlesOverlap(b.pos.x, b.pos.y, b.radius, e.pos.x, e.pos.y, e.radius)) return;
+      const wasSplash = b.splash;
+      const impactX = b.pos.x;
+      const impactY = b.pos.y;
       b.alive = false;
       e.hp -= b.dmg;
       result.hits++;
-      spawnBurst(w, b.pos.x, b.pos.y, 3, 0.3);
+      spawnBurst(w, impactX, impactY, 3, 0.3);
       if (e.hp <= 0) {
-        e.alive = false;
-        result.kills++;
-        spawnBurst(w, e.pos.x, e.pos.y, 12, 0.5);
-        for (let i = 0; i < 4; i++) spawnSmoke(w, e.pos.x, e.pos.y, 1.2);
+        killEnemy(w, e, result);
+      }
+      if (wasSplash) {
+        w.enemies.forEachAlive((other) => {
+          if (other === e || !other.alive) return;
+          const dx = other.pos.x - impactX;
+          const dy = other.pos.y - impactY;
+          if (dx * dx + dy * dy > SPLASH_RADIUS * SPLASH_RADIUS) return;
+          other.hp -= 1;
+          if (other.hp <= 0) killEnemy(w, other, result);
+        });
       }
     });
   });
   return result;
+}
+
+export function collideEnemyBulletsPlayer(
+  w: World, player: Vec2, radius: number, invulnerable: boolean,
+): boolean {
+  if (invulnerable) return false;
+  let hit = false;
+  w.enemyBullets.forEachAlive((b) => {
+    if (hit || !b.alive) return;
+    if (!circlesOverlap(b.pos.x, b.pos.y, b.radius, player.x, player.y, radius)) return;
+    b.alive = false;
+    spawnBurst(w, b.pos.x, b.pos.y, 3, 0.3);
+    hit = true;
+  });
+  return hit;
+}
+
+export function collideEnemiesPlayer(
+  w: World, player: Vec2, radius: number, invulnerable: boolean,
+): boolean {
+  if (invulnerable) return false;
+  let hit = false;
+  w.enemies.forEachAlive((e) => {
+    if (hit || !e.alive) return;
+    if (!circlesOverlap(e.pos.x, e.pos.y, e.radius, player.x, player.y, radius)) return;
+    spawnBurst(w, e.pos.x, e.pos.y, 3, 0.3);
+    hit = true;
+  });
+  return hit;
+}
+
+export function collidePickupsPlayer(
+  w: World, player: Vec2, radius: number, onCollect: (kind: PickupKind) => void,
+): void {
+  w.pickups.forEachAlive((p) => {
+    if (!p.alive) return;
+    if (!circlesOverlap(p.pos.x, p.pos.y, p.radius, player.x, player.y, radius)) return;
+    p.alive = false;
+    onCollect(p.pickupKind);
+  });
 }
 
 const FIRE_COLORS = [PALETTE[21], PALETTE[8], PALETTE[5]]; // white, yellow, orange

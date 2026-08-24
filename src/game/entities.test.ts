@@ -4,6 +4,9 @@ import { mulberry32 } from '../engine/rng';
 import {
   CAM_MARGIN,
   collideBulletsEnemies,
+  collideEnemiesPlayer,
+  collideEnemyBulletsPlayer,
+  collidePickupsPlayer,
   createFireControl,
   createWorld,
   FIRE_INTERVAL,
@@ -197,7 +200,7 @@ describe('collideBulletsEnemies', () => {
     const w = createWorld(mulberry32(1));
     const { e, b } = place(w, 3);
     const res = collideBulletsEnemies(w);
-    expect(res).toEqual({ hits: 1, kills: 0 });
+    expect(res).toEqual({ hits: 1, kills: 0, score: 0 });
     expect(b.alive).toBe(false);
     expect(e.alive).toBe(true);
     expect(e.hp).toBe(2);
@@ -208,7 +211,7 @@ describe('collideBulletsEnemies', () => {
     const w = createWorld(mulberry32(1));
     const { e } = place(w, 1);
     const res = collideBulletsEnemies(w);
-    expect(res).toEqual({ hits: 1, kills: 1 });
+    expect(res).toEqual({ hits: 1, kills: 1, score: 0 });
     expect(e.alive).toBe(false);
     expect(w.particles.countAlive()).toBe(3 + 12 + 4); // spark + fire + smoke
   });
@@ -220,7 +223,7 @@ describe('collideBulletsEnemies', () => {
     const b = w.bullets.spawn()!;
     b.pos.x = 300; b.pos.y = 300; b.radius = 2;
     const res = collideBulletsEnemies(w);
-    expect(res).toEqual({ hits: 0, kills: 0 });
+    expect(res).toEqual({ hits: 0, kills: 0, score: 0 });
     expect(b.alive).toBe(true);
     expect(e.hp).toBe(3);
   });
@@ -354,5 +357,128 @@ describe('pickups', () => {
     const p = spawnPickup(w, 'salvage', 100, 100)!;
     tickPickups(w, 1 / 60, 0, { x: 500, y: 400 });
     expect(p.vel).toEqual({ x: 0, y: 30 });
+  });
+});
+
+describe('enemy behaviors', () => {
+  it('boat fires an aimed shot when timer elapses on-screen', () => {
+    const w = createWorld(mulberry32(7));
+    const boat = spawnBoat(w, 100, 100)!;
+    boat.fireTimer = 0.01;
+    tickEnemies(w, 1 / 60, 0, { x: 200, y: 300 });
+    expect(w.enemyBullets.countAlive()).toBe(1);
+    const b = w.enemyBullets.items.find((x) => x.alive)!;
+    const speed = Math.hypot(b.vel.x, b.vel.y);
+    expect(speed).toBeCloseTo(140, 1);
+    expect(b.vel.x).toBeGreaterThan(0); // aimed right-down toward (200,300)
+    expect(b.vel.y).toBeGreaterThan(0);
+    expect(boat.fireTimer).toBeGreaterThan(1.9); // reset
+  });
+
+  it('boat holds fire while off-screen', () => {
+    const w = createWorld(mulberry32(7));
+    const boat = spawnBoat(w, 100, -100)!;
+    boat.fireTimer = 0.01;
+    tickEnemies(w, 1 / 60, 0, { x: 200, y: 300 });
+    expect(w.enemyBullets.countAlive()).toBe(0);
+  });
+
+  it('delta weaves as a pure function of age', () => {
+    const w = createWorld(mulberry32(7));
+    const d = spawnDelta(w, 300, 50)!;
+    for (let i = 0; i < 30; i++) tickEnemies(w, 1 / 60, 0, { x: 0, y: 1000 });
+    expect(d.pos.x).toBeCloseTo(300 + Math.sin(d.age * 2.2) * 28, 5);
+  });
+
+  it('delta fires exactly once when close to player y', () => {
+    const w = createWorld(mulberry32(7));
+    const d = spawnDelta(w, 300, 50)!;
+    for (let i = 0; i < 10; i++) tickEnemies(w, 1 / 60, 0, { x: 300, y: 200 });
+    expect(w.enemyBullets.countAlive()).toBe(1);
+    expect(d.hasFired).toBe(true);
+    const b = w.enemyBullets.items.find((x) => x.alive)!;
+    expect(b.vel).toEqual({ x: 0, y: 200 });
+  });
+});
+
+describe('player-side collisions', () => {
+  it('enemy bullet hits the player once and dies', () => {
+    const w = createWorld(mulberry32(7));
+    const b = w.enemyBullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.radius = 2;
+    expect(collideEnemyBulletsPlayer(w, { x: 100, y: 100 }, 10, false)).toBe(true);
+    expect(b.alive).toBe(false);
+  });
+
+  it('invulnerability shrugs off bullets and ramming', () => {
+    const w = createWorld(mulberry32(7));
+    const b = w.enemyBullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.radius = 2;
+    spawnBoat(w, 100, 100);
+    expect(collideEnemyBulletsPlayer(w, { x: 100, y: 100 }, 10, true)).toBe(false);
+    expect(collideEnemiesPlayer(w, { x: 100, y: 100 }, 10, true)).toBe(false);
+    expect(b.alive).toBe(true);
+  });
+
+  it('ramming an enemy hurts the player but not the enemy', () => {
+    const w = createWorld(mulberry32(7));
+    const e = spawnBoat(w, 100, 100)!;
+    expect(collideEnemiesPlayer(w, { x: 105, y: 100 }, 10, false)).toBe(true);
+    expect(e.alive).toBe(true);
+  });
+});
+
+describe('damage, splash, salvage, score', () => {
+  it('kills award score in the result', () => {
+    const w = createWorld(mulberry32(9));
+    const e = spawnBoat(w, 100, 100)!;
+    e.hp = 1;
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.radius = 2; b.dmg = 1;
+    const r = collideBulletsEnemies(w);
+    expect(r.kills).toBe(1);
+    expect(r.score).toBe(100);
+  });
+
+  it('dmg 3 one-shots a boat', () => {
+    const w = createWorld(mulberry32(9));
+    spawnBoat(w, 100, 100);
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.radius = 4; b.dmg = 3;
+    expect(collideBulletsEnemies(w).kills).toBe(1);
+  });
+
+  it('splash damages nearby enemies by 1', () => {
+    const w = createWorld(mulberry32(9));
+    const near = spawnBoat(w, 120, 100)!;   // 20px away — inside 24
+    const far = spawnBoat(w, 160, 100)!;    // 60px away — outside
+    const target = spawnBoat(w, 100, 100)!;
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.radius = 4; b.dmg = 3; b.splash = true;
+    collideBulletsEnemies(w);
+    expect(target.alive).toBe(false);
+    expect(near.hp).toBe(2);
+    expect(far.hp).toBe(3);
+  });
+
+  it('salvage drops are seeded by enemy chance', () => {
+    // With enough kills at chance 1.0 vs 0.0 the pickup counts differ.
+    const w = createWorld(mulberry32(11));
+    const e = spawnBoat(w, 100, 100)!;
+    e.hp = 1; e.salvageChance = 1;
+    const b = w.bullets.spawn()!;
+    b.pos.x = 100; b.pos.y = 100; b.radius = 2; b.dmg = 1;
+    collideBulletsEnemies(w);
+    expect(w.pickups.countAlive()).toBe(1);
+    expect(w.pickups.items.find((p) => p.alive)!.pickupKind).toBe('salvage');
+  });
+
+  it('pickup collection fires the callback and kills the pickup', () => {
+    const w = createWorld(mulberry32(11));
+    spawnPickup(w, 'crate', 100, 100);
+    const got: string[] = [];
+    collidePickupsPlayer(w, { x: 100, y: 100 }, 10, (k) => got.push(k));
+    expect(got).toEqual(['crate']);
+    expect(w.pickups.countAlive()).toBe(0);
   });
 });
