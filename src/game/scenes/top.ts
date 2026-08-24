@@ -1,2 +1,457 @@
-// Stub — implemented in a later milestone (see docs/steel-talon-engine-spec.md §8).
-export {};
+// Level 1 TOP scene: the vertical slice. Scrolling water strip, seeded
+// wave script, four-slot arsenal, HUD, and the complete/gameover outro.
+// update() stays DOM-free (headless-testable): prepared sprite canvases
+// are built lazily on first draw().
+import type { AudioSystem } from '../../engine/audio';
+import type { InputSource } from '../../engine/input';
+import { HEIGHT, WIDTH, type Camera } from '../../engine/renderer';
+import { mulberry32 } from '../../engine/rng';
+import type { Scene } from '../../engine/scene';
+import type { Sequencer } from '../../engine/sequencer';
+import { drawTilemap, type Tilemap } from '../../engine/tilemap';
+import { drawLayered, prepareLayered, rasterize, type PreparedLayered } from '../../engine/sprite';
+import {
+  collideBulletsEnemies,
+  collideEnemiesPlayer,
+  collideEnemyBulletsPlayer,
+  collidePickupsPlayer,
+  createWorld,
+  spawnSmoke,
+  tickBullets,
+  tickEnemies,
+  tickEnemyBullets,
+  tickParticles,
+  tickPickups,
+  type PickupKind,
+  type World,
+} from '../entities';
+import { createHud, formatScore } from '../hud';
+import { PALETTE } from '../palette';
+import {
+  addScore,
+  armMissiles,
+  collectSalvage,
+  createRun,
+  cycleWeapon,
+  damagePlayer,
+  grantWeapon,
+  selectWeapon,
+  tickRun,
+  type RunState,
+} from '../run';
+import { SFX } from '../sfx';
+import { LEVEL_LENGTH, SCROLL_SPEED, createWaveRunner, generateWaveScript, tickWaves, type WaveRunner } from '../waves';
+import {
+  createWeaponState,
+  tickWeapons,
+  type Mounts,
+  type WeaponState,
+} from '../weapons';
+import { CHOPPER_BODY, LAYER, createChopper } from '../sprites/player';
+import { createBoat } from '../sprites/boat';
+import { createDelta } from '../sprites/delta';
+import { ROCKET, TRACER } from '../sprites/shots';
+import {
+  CRATE,
+  MINIGUN_PICKUP,
+  PICKUP_FRAME_TICKS,
+  ROCKET_PICKUP,
+  SALVAGE,
+  SALVAGE_FRAME_TICKS,
+} from '../sprites/pickups';
+import { WATER_FRAME_TICKS } from '../sprites/tiles';
+import { LEVEL1_SONG } from '../songs/level1';
+
+export interface TopDeps {
+  input: InputSource;
+  audio: AudioSystem;
+  sequencer: Sequencer;
+  camera: Camera;
+  water: Tilemap;
+  makeRng(): () => number;
+  onExit(score: number, salvage: number): void;
+}
+
+export type Overlay = 'playing' | 'complete' | 'gameover';
+
+const SPEED = 180;
+const SQRT1_2 = Math.SQRT1_2;
+const PLAYER_RADIUS = 10;
+const CHOPPER_HALF = 16; // CHOPPER_BODY is 32x32, scale 1
+const OUTRO_TICKS = 300; // 5s at 60Hz
+const TALLY_TICKS = 120; // 2s roll-up
+
+interface PreparedAssets {
+  chopper: PreparedLayered;
+  boat: PreparedLayered;
+  delta: PreparedLayered;
+  tracer: HTMLCanvasElement;
+  rocket: HTMLCanvasElement;
+  minigunPickup: HTMLCanvasElement[];
+  rocketPickup: HTMLCanvasElement[];
+  crate: HTMLCanvasElement;
+  salvage: HTMLCanvasElement[];
+  hud: ReturnType<typeof createHud>;
+}
+
+export function createTopScene(deps: TopDeps): Scene {
+  // Reused closure-level objects — no per-tick allocation.
+  const playerPos = { x: 0, y: 0 };
+  const MOUNTS: Mounts = {
+    nose: { x: 0, y: 0, dir: 1 },
+    podL: { x: 0, y: 0, dir: -1 },
+    podR: { x: 0, y: 0, dir: 1 },
+    pylonL: { x: 0, y: 0, dir: -1 },
+    pylonR: { x: 0, y: 0, dir: 1 },
+  };
+  const prevInput = { weapon1: false, weapon2: false, weapon3: false, weapon4: false, special: false };
+
+  // `state` holds everything reassigned by enter(); callbacks close over
+  // this single mutable object so a fresh enter() never strands a stale
+  // reference (the pickup-collect callback in particular).
+  const state: {
+    rng: () => number;
+    world: World;
+    run: RunState;
+    ws: WeaponState;
+    script: ReturnType<typeof generateWaveScript>;
+    runner: WaveRunner;
+    overlay: Overlay;
+    overlayTicks: number;
+    ticks: number;
+    tallyShown: number;
+  } = {
+    rng: mulberry32(0),
+    world: createWorld(mulberry32(0)),
+    run: createRun(),
+    ws: createWeaponState(),
+    script: [],
+    runner: createWaveRunner([]),
+    overlay: 'playing',
+    overlayTicks: 0,
+    ticks: 0,
+    tallyShown: 0,
+  };
+
+  const chopper = createChopper();
+
+  const onPickupCollect = (kind: PickupKind): void => {
+    const run = state.run;
+    switch (kind) {
+      case 'salvage':
+        collectSalvage(run);
+        deps.audio.blip(SFX.pickup);
+        break;
+      case 'crate':
+        armMissiles(run);
+        deps.audio.blip(SFX.pickup);
+        break;
+      case 'minigun':
+        grantWeapon(run, 'miniguns');
+        deps.audio.blip(SFX.pickup);
+        break;
+      case 'rockets':
+        grantWeapon(run, 'rockets');
+        deps.audio.blip(SFX.pickup);
+        break;
+    }
+  };
+
+  let prepared: PreparedAssets | null = null;
+
+  function ensurePrepared(): PreparedAssets {
+    if (!prepared) {
+      prepared = {
+        chopper: prepareLayered(chopper),
+        boat: prepareLayered(createBoat()),
+        delta: prepareLayered(createDelta()),
+        tracer: rasterize(TRACER.frames[0]),
+        rocket: rasterize(ROCKET.frames[0]),
+        minigunPickup: MINIGUN_PICKUP.frames.map(rasterize),
+        rocketPickup: ROCKET_PICKUP.frames.map(rasterize),
+        crate: rasterize(CRATE.frames[0]),
+        salvage: SALVAGE.frames.map(rasterize),
+        hud: createHud(),
+      };
+    }
+    return prepared;
+  }
+
+  function tallyTarget(): number {
+    return state.run.score + state.run.salvage * 25;
+  }
+
+  return {
+    enter() {
+      state.rng = deps.makeRng();
+      state.world = createWorld(state.rng);
+      state.run = createRun();
+      state.ws = createWeaponState();
+      state.script = generateWaveScript(state.rng, LEVEL_LENGTH);
+      state.runner = createWaveRunner(state.script);
+      state.overlay = 'playing';
+      state.overlayTicks = 0;
+      state.ticks = 0;
+      state.tallyShown = 0;
+
+      deps.camera.x = 0;
+      deps.camera.y = LEVEL_LENGTH - HEIGHT;
+      playerPos.x = WIDTH / 2;
+      playerPos.y = deps.camera.y + HEIGHT - 80;
+
+      prevInput.weapon1 = false;
+      prevInput.weapon2 = false;
+      prevInput.weapon3 = false;
+      prevInput.weapon4 = false;
+      prevInput.special = false;
+
+      // Reset layer visibility/frame state the scene owns (prepared
+      // sprites, once built, are reused across runs).
+      chopper.layers[LAYER.FLASH_L].visible = false;
+      chopper.layers[LAYER.FLASH_R].visible = false;
+      chopper.layers[LAYER.FLASH_NOSE].visible = false;
+      chopper.layers[LAYER.MISSILE_L].visible = false;
+      chopper.layers[LAYER.MISSILE_R].visible = false;
+      chopper.layers[LAYER.ROTOR].frame = 0;
+
+      deps.sequencer.play(LEVEL1_SONG);
+    },
+
+    update(dt) {
+      const { world, run, ws, runner, script } = state;
+      const camera = deps.camera;
+      const input = deps.input.state;
+
+      if (state.overlay === 'playing') {
+        state.ticks++;
+        tickRun(run, dt);
+
+        // Scroll.
+        camera.y = Math.max(0, camera.y - SCROLL_SPEED * dt);
+
+        // Move player.
+        let dx = 0;
+        let dy = 0;
+        if (input.left) dx -= 1;
+        if (input.right) dx += 1;
+        if (input.up) dy -= 1;
+        if (input.down) dy += 1;
+        if (dx !== 0 && dy !== 0) {
+          dx *= SQRT1_2;
+          dy *= SQRT1_2;
+        }
+        playerPos.x += dx * SPEED * dt;
+        playerPos.y += dy * SPEED * dt;
+        playerPos.x = Math.max(CHOPPER_HALF, Math.min(WIDTH - CHOPPER_HALF, playerPos.x));
+        playerPos.y = Math.max(
+          camera.y + CHOPPER_HALF,
+          Math.min(camera.y + HEIGHT - CHOPPER_HALF, playerPos.y),
+        );
+
+        // Weapon selection (rising edge).
+        if (input.weapon1 && !prevInput.weapon1) {
+          deps.audio.blip(selectWeapon(run, 1) ? SFX.select : SFX.deny);
+        }
+        if (input.weapon2 && !prevInput.weapon2) {
+          deps.audio.blip(selectWeapon(run, 2) ? SFX.select : SFX.deny);
+        }
+        if (input.weapon3 && !prevInput.weapon3) {
+          deps.audio.blip(selectWeapon(run, 3) ? SFX.select : SFX.deny);
+        }
+        if (input.weapon4 && !prevInput.weapon4) {
+          deps.audio.blip(selectWeapon(run, 4) ? SFX.select : SFX.deny);
+        }
+        if (input.special && !prevInput.special) {
+          cycleWeapon(run);
+          deps.audio.blip(SFX.select);
+        }
+        prevInput.weapon1 = input.weapon1;
+        prevInput.weapon2 = input.weapon2;
+        prevInput.weapon3 = input.weapon3;
+        prevInput.weapon4 = input.weapon4;
+        prevInput.special = input.special;
+
+        // Update mounts from player position + chopper anchors.
+        const a = CHOPPER_BODY.anchors;
+        MOUNTS.nose.x = playerPos.x - CHOPPER_HALF + a.nose[0];
+        MOUNTS.nose.y = playerPos.y - CHOPPER_HALF + a.nose[1];
+        MOUNTS.podL.x = playerPos.x - CHOPPER_HALF + a.podL[0];
+        MOUNTS.podL.y = playerPos.y - CHOPPER_HALF + a.podL[1];
+        MOUNTS.podR.x = playerPos.x - CHOPPER_HALF + a.podR[0];
+        MOUNTS.podR.y = playerPos.y - CHOPPER_HALF + a.podR[1];
+        MOUNTS.pylonL.x = playerPos.x - CHOPPER_HALF + a.pylonL[0];
+        MOUNTS.pylonL.y = playerPos.y - CHOPPER_HALF + a.pylonL[1];
+        MOUNTS.pylonR.x = playerPos.x - CHOPPER_HALF + a.pylonR[0];
+        MOUNTS.pylonR.y = playerPos.y - CHOPPER_HALF + a.pylonR[1];
+
+        const firedKind = tickWeapons(world, run, ws, MOUNTS, input.fire, dt);
+        if (firedKind) deps.audio.blip(SFX.shoot);
+
+        tickWaves(world, runner, camera.y);
+
+        tickBullets(world, dt, camera.y);
+        tickEnemyBullets(world, dt, camera.y);
+        tickEnemies(world, dt, camera.y, playerPos);
+        tickPickups(world, dt, camera.y, playerPos);
+        tickParticles(world, dt);
+
+        const r = collideBulletsEnemies(world);
+        addScore(run, r.score);
+        if (r.kills > 0) deps.audio.blip(SFX.explode);
+        else if (r.hits > 0) deps.audio.blip(SFX.hit);
+
+        const invuln = run.invulnTicks > 0;
+        const hit =
+          collideEnemyBulletsPlayer(world, playerPos, PLAYER_RADIUS, invuln) ||
+          collideEnemiesPlayer(world, playerPos, PLAYER_RADIUS, invuln);
+        if (hit) {
+          switch (damagePlayer(run)) {
+            case 'hit':
+              deps.audio.blip(SFX.hit);
+              break;
+            case 'death':
+              for (let i = 0; i < 4; i++) spawnSmoke(world, playerPos.x, playerPos.y, 0.8);
+              deps.audio.blip(SFX.explode);
+              break;
+            case 'gameover':
+              deps.audio.blip(SFX.explode);
+              state.overlay = 'gameover';
+              state.overlayTicks = 0;
+              deps.sequencer.stop();
+              break;
+            case 'shrugged':
+              break;
+          }
+        }
+
+        collidePickupsPlayer(world, playerPos, 12, onPickupCollect);
+
+        // Chopper layer state.
+        chopper.layers[LAYER.FLASH_L].visible = ws.flashTicks > 0 && run.selected === 2;
+        chopper.layers[LAYER.FLASH_R].visible = ws.flashTicks > 0 && run.selected === 2;
+        chopper.layers[LAYER.FLASH_NOSE].visible = ws.flashTicks > 0 && run.selected === 1;
+        chopper.layers[LAYER.FLASH_L].frame = ws.flashFrame;
+        chopper.layers[LAYER.FLASH_R].frame = ws.flashFrame;
+        chopper.layers[LAYER.FLASH_NOSE].frame = ws.flashFrame;
+        chopper.layers[LAYER.MISSILE_L].visible = run.missileAmmo > 0;
+        chopper.layers[LAYER.MISSILE_R].visible = run.missileAmmo > 0;
+        chopper.layers[LAYER.ROTOR].frame = Math.floor(state.ticks / 4) % 2;
+
+        // Outro check.
+        if (camera.y === 0 && world.enemies.countAlive() === 0 && runner.next >= script.length) {
+          state.overlay = 'complete';
+          state.overlayTicks = 0;
+          deps.sequencer.stop();
+        }
+      } else {
+        state.overlayTicks++;
+        tickParticles(world, dt);
+        const target = tallyTarget();
+        state.tallyShown = Math.min(
+          target,
+          Math.floor((state.overlayTicks * target) / TALLY_TICKS),
+        );
+        if (state.overlayTicks === OUTRO_TICKS) {
+          deps.onExit(run.score, run.salvage);
+        }
+      }
+    },
+
+    draw(ctx) {
+      const assets = ensurePrepared();
+      const { world, run, overlay, ticks, tallyShown } = state;
+      const camera = deps.camera;
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      drawTilemap(ctx, deps.water, camera.x, camera.y, WIDTH, HEIGHT, Math.floor(ticks / WATER_FRAME_TICKS));
+
+      // Pickups.
+      world.pickups.forEachAlive((p) => {
+        const x = p.pos.x - camera.x;
+        const y = p.pos.y - camera.y;
+        let canvas: HTMLCanvasElement;
+        switch (p.pickupKind) {
+          case 'minigun':
+            canvas = assets.minigunPickup[Math.floor(ticks / PICKUP_FRAME_TICKS) % 4];
+            break;
+          case 'rockets':
+            canvas = assets.rocketPickup[Math.floor(ticks / PICKUP_FRAME_TICKS) % 4];
+            break;
+          case 'salvage':
+            canvas = assets.salvage[Math.floor(ticks / SALVAGE_FRAME_TICKS) % 2];
+            break;
+          case 'crate':
+          default:
+            canvas = assets.crate;
+            break;
+        }
+        ctx.drawImage(canvas, Math.round(x - canvas.width / 2), Math.round(y - canvas.height / 2));
+      });
+
+      // Enemies.
+      world.enemies.forEachAlive((e) => {
+        const x = e.pos.x - camera.x;
+        const y = e.pos.y - camera.y;
+        if (e.enemyKind === 'delta') {
+          assets.delta.sprite.layers[1].frame = Math.floor(ticks / 6) % 2;
+          drawLayered(ctx, assets.delta, x, y);
+        } else {
+          drawLayered(ctx, assets.boat, x, y);
+        }
+      });
+
+      // Enemy bullets.
+      ctx.fillStyle = PALETTE[5];
+      world.enemyBullets.forEachAlive((b) => {
+        ctx.fillRect(Math.round(b.pos.x - camera.x - 1), Math.round(b.pos.y - camera.y - 1), 2, 2);
+      });
+
+      // Player bullets.
+      world.bullets.forEachAlive((b) => {
+        const canvas = b.dmg >= 2 ? assets.rocket : assets.tracer;
+        const x = b.pos.x - camera.x;
+        const y = b.pos.y - camera.y;
+        ctx.drawImage(canvas, Math.round(x - canvas.width / 2), Math.round(y - canvas.height / 2));
+      });
+
+      // Chopper (skip on invuln blink ticks).
+      const blinking = run.invulnTicks > 0 && Math.floor(ticks / 4) % 2 === 1;
+      if (!blinking) {
+        drawLayered(ctx, assets.chopper, playerPos.x - camera.x, playerPos.y - camera.y);
+      }
+
+      // Particles.
+      world.particles.forEachAlive((p) => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(
+          Math.round(p.pos.x - camera.x - p.size / 2),
+          Math.round(p.pos.y - camera.y - p.size / 2),
+          p.size,
+          p.size,
+        );
+      });
+
+      assets.hud.draw(ctx, run);
+
+      if (overlay === 'complete' || overlay === 'gameover') {
+        ctx.textAlign = 'center';
+        ctx.font = '24px monospace';
+        ctx.fillStyle = overlay === 'complete' ? PALETTE[8] : PALETTE[27];
+        ctx.fillText(overlay === 'complete' ? 'SEGMENT COMPLETE' : 'GAME OVER', WIDTH / 2, HEIGHT / 2 - 20);
+
+        ctx.font = '14px monospace';
+        ctx.fillStyle = PALETTE[21];
+        ctx.fillText(`SCORE ${formatScore(tallyShown)}`, WIDTH / 2, HEIGHT / 2 + 6);
+
+        if (overlay === 'complete') {
+          ctx.font = '12px monospace';
+          ctx.fillStyle = PALETTE[5];
+          ctx.fillText('GOOD SHOOTING, TEX.', WIDTH / 2, HEIGHT / 2 + 26);
+        }
+        ctx.textAlign = 'left';
+      }
+    },
+  };
+}
