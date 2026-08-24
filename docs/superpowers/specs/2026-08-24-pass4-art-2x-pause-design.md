@@ -78,7 +78,7 @@ HUD layout (score text, pips, weapon panel boxes) may need pixel nudges to fit t
 
 New overlay state `'paused'` alongside `'playing' | 'complete' | 'gameover'`.
 
-**Input:** `Input` gains a `pause` action bound to `Escape`, plus a `confirm` action bound to `Enter` and `NumpadEnter`. Menu navigation reuses the existing up/down movement bindings (arrows + W/S). All menu keys are edge-detected in the scene (same pressed-last-frame pattern used for weapon selection).
+**Input:** `Input` gains a `pause` action bound to `Escape`. Confirm reuses the existing `start` action (already bound to `Enter`), gaining a `NumpadEnter` binding. Menu navigation reuses the existing up/down movement bindings (arrows + W/S). All menu keys are edge-detected in the scene (same pressed-last-frame pattern used for weapon selection).
 
 **Behavior:**
 - Escape during `'playing'` → `'paused'`. The world freezes: `update()` runs only the pause-menu logic — no entity/wave/weapon/timer ticks, no RNG consultation, so determinism is untouched (paused ticks simply never happen). SFX stop with gameplay; **music keeps looping** (no sequencer changes).
