@@ -2,7 +2,7 @@
 // Gamepad and touch are deferred (spec §6).
 export interface Input {
   up: boolean; down: boolean; left: boolean; right: boolean;
-  fire: boolean; special: boolean; start: boolean;
+  fire: boolean; special: boolean; start: boolean; pause: boolean;
   weapon1: boolean; weapon2: boolean; weapon3: boolean; weapon4: boolean;
 }
 
@@ -13,7 +13,8 @@ const BINDINGS: Record<string, keyof Input> = {
   ArrowRight: 'right', KeyD: 'right',
   KeyZ: 'fire', KeyJ: 'fire',
   KeyX: 'special', KeyK: 'special',
-  Enter: 'start',
+  Enter: 'start', NumpadEnter: 'start',
+  Escape: 'pause',
   Digit1: 'weapon1', Numpad1: 'weapon1',
   Digit2: 'weapon2', Numpad2: 'weapon2',
   Digit3: 'weapon3', Numpad3: 'weapon3',
@@ -31,7 +32,7 @@ export interface InputSource {
 export function createInput(): InputSource {
   const state: Input = {
     up: false, down: false, left: false, right: false,
-    fire: false, special: false, start: false,
+    fire: false, special: false, start: false, pause: false,
     weapon1: false, weapon2: false, weapon3: false, weapon4: false,
   };
   // Latched by any keydown so "press any key" prompts do not need their own bindings.

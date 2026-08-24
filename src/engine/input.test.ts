@@ -6,7 +6,7 @@ describe('createInput', () => {
     const { state } = createInput();
     expect(state).toEqual({
       up: false, down: false, left: false, right: false,
-      fire: false, special: false, start: false,
+      fire: false, special: false, start: false, pause: false,
       weapon1: false, weapon2: false, weapon3: false, weapon4: false,
     });
   });
@@ -43,7 +43,7 @@ describe('createInput', () => {
     input.onKey('KeyQ', true);
     expect(input.state).toEqual({
       up: false, down: false, left: false, right: false,
-      fire: false, special: false, start: false,
+      fire: false, special: false, start: false, pause: false,
       weapon1: false, weapon2: false, weapon3: false, weapon4: false,
     });
   });
@@ -74,6 +74,22 @@ describe('consumeAnyKey', () => {
     const input = createInput();
     input.onKey('KeyZ', false);
     expect(input.consumeAnyKey()).toBe(false);
+  });
+});
+
+describe('pause and NumpadEnter bindings', () => {
+  it('binds Escape to pause', () => {
+    const input = createInput();
+    input.onKey('Escape', true);
+    expect(input.state.pause).toBe(true);
+    input.onKey('Escape', false);
+    expect(input.state.pause).toBe(false);
+  });
+
+  it('binds NumpadEnter to start', () => {
+    const input = createInput();
+    input.onKey('NumpadEnter', true);
+    expect(input.state.start).toBe(true);
   });
 });
 
