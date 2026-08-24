@@ -19,7 +19,7 @@
 
 ## 2. Rendering: The 640x480 Contract
 
-One rule everything obeys: **the game only ever draws to a 640x480 offscreen buffer.** The visible canvas scales that buffer up (or down) by the largest fractional fill that fits the window, with smoothing off, so pixels stay crisp (non-integer scales accept slightly uneven pixel rows in exchange for filling the window).
+One rule everything obeys: **the game only ever draws to a 640x480 offscreen buffer.** The visible canvas scales that buffer up (or down) by the largest fractional fill that fits the window, via a sharp-bilinear two-pass: integer upscale with smoothing off, then bilinear fit — this keeps pixels crisp at integer scales and avoids nearest-neighbor shimmer while scrolling at non-integer scales.
 
 ```
 Game code → backBuffer (640x480, fixed forever)

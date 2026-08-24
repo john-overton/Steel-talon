@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePresentation, HEIGHT, WIDTH } from './renderer';
+import { computePresentation, HEIGHT, upscaleFactor, WIDTH } from './renderer';
 
 describe('computePresentation', () => {
   it('exports the 640x480 contract', () => {
@@ -36,5 +36,14 @@ describe('computePresentation', () => {
     const scale = 812 / 480;
     expect(p.y).toBeCloseTo(0, 10);
     expect(p.x).toBeCloseTo((1504 - WIDTH * scale) / 2, 10);
+  });
+});
+
+describe('upscaleFactor', () => {
+  it('rounds up to the smallest integer factor >= scale, clamped to 1x', () => {
+    expect(upscaleFactor(1.69)).toBe(2);
+    expect(upscaleFactor(0.5)).toBe(1);
+    expect(upscaleFactor(2)).toBe(2);
+    expect(upscaleFactor(4.5)).toBe(5);
   });
 });
