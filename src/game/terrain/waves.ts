@@ -49,12 +49,19 @@ export function wavesIn(x0: number, y0: number, x1: number, y1: number, seed: nu
       const mag0 = Math.hypot(gx0, gy0);
       if (mag0 < 1e-6) continue;
 
-      const T = 90 + ((h >>> 8) % 60);
-      const p = ((tick + ((h >>> 16) % T)) % T) / T;
+      // Distinct hashes for count/period/phase so they don't reuse bit
+      // slices of the same word (which correlated them with each other and
+      // with the h % 6 presence filter).
+      const hCount = hash2(col, row, seed ^ 0x5eaf0b);
+      const hPeriod = hash2(col, row, seed ^ 0x5eaf0c);
+      const hPhase = hash2(col, row, seed ^ 0x5eaf0d);
+
+      const T = 90 + (hPeriod % 60);
+      const p = ((tick + (hPhase % T)) % T) / T;
       const alpha = Math.sin(p * Math.PI);
       const offset = (p - 1) * OFFSHORE;
 
-      const count = 3 + (h % 10);
+      const count = 3 + (hCount % 10);
       const pts: Array<{ x: number; y: number }> = [];
       let px = cx;
       let py = cy;

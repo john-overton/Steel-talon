@@ -92,6 +92,12 @@ export interface TopDeps {
 export type Overlay = 'playing' | 'paused' | 'complete' | 'gameover';
 
 const SPEED = 360;
+// Terrain sampling offset: camera.x is pinned to 0 all level long, so a raw
+// terrain.draw(ctx, camera.x, ...) always samples world x in [0,640) — the
+// western edge of plot column 0, where the field's BORDER_FADE forces
+// elevation toward 0 (open water). Shifting the sample by a plot-interior
+// strip keeps the flight path over land most of the time.
+const TERRAIN_X_OFFSET = 2180;
 const SQRT1_2 = Math.SQRT1_2;
 const PLAYER_RADIUS = 20;
 const CHOPPER_HALF = 32; // CHOPPER_BODY is 64x64, scale 1
@@ -502,7 +508,7 @@ export function createTopScene(deps: TopDeps): Scene & {
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
       drawTilemap(ctx, deps.water, camera.x, camera.y, WIDTH, HEIGHT, Math.floor(ticks / WATER_FRAME_TICKS));
-      deps.terrain?.draw(ctx, camera.x, camera.y, ticks);
+      deps.terrain?.draw(ctx, camera.x + TERRAIN_X_OFFSET, camera.y, ticks);
 
       // Pickups.
       world.pickups.forEachAlive((p) => {
