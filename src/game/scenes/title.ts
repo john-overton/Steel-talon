@@ -1,5 +1,6 @@
 // Attract-mode title screen: scrolling water backdrop, drifting seeded
-// archipelago, a lissajous chopper flyover, blinking "INSERT COIN" prompt,
+// archipelago, a lissajous chopper flyover (drawn nose-up, banking via pose
+// frames rather than canvas rotation), blinking "INSERT COIN" prompt,
 // and a two-press flow (first key starts the theme, next key hands off to
 // the run). Engine spec §8.
 import type { AudioSystem } from '../../engine/audio';
@@ -10,6 +11,7 @@ import type { Sequencer } from '../../engine/sequencer';
 import { drawLayered, prepareLayered, type PreparedLayered } from '../../engine/sprite';
 import { drawTilemap, type Tilemap } from '../../engine/tilemap';
 import { PALETTE } from '../palette';
+import { poseFrameIndex, poseFromVelocity } from '../pose';
 import { createChopper, LAYER } from '../sprites/player';
 import { WATER_FRAME_TICKS } from '../sprites/tiles';
 import type { TerrainLayer } from '../terrain';
@@ -47,6 +49,11 @@ const FORFEIT_BLINK = 20;  // ticks per blink phase
 // closes) while holding drift speed comfortably in a slow, readable range.
 const CAM_AMP = 650;
 
+// Pose thresholds in px/tick (0.25 = 15 px/s, 0.75 = 45 px/s): the attract
+// path's per-tick analytic velocity feeds poseFromVelocity directly.
+export const TITLE_POSE_SLOW = 0.25;
+export const TITLE_POSE_FAST = 0.75;
+
 export function attractCamera(t: number): { x: number; y: number } {
   return {
     x: 2500 + t * 0.35 + CAM_AMP * Math.sin(t * 0.00073),
@@ -54,15 +61,15 @@ export function attractCamera(t: number): { x: number; y: number } {
   };
 }
 
-// Chopper position/heading in SCREEN coords at a tick: a lissajous path kept
-// well inside the 640x480 frame, with heading following the analytic
-// velocity so the sprite banks to face its direction of motion.
-export function attractChopper(t: number): { x: number; y: number; heading: number } {
+// Chopper position/velocity in SCREEN coords at a tick: a lissajous path kept
+// well inside the 640x480 frame. The sprite draws nose-up; the analytic
+// per-tick velocity picks a pose frame, so banking conveys the motion.
+export function attractChopper(t: number): { x: number; y: number; vx: number; vy: number } {
   const x = 320 + 190 * Math.sin(t * 0.006);
   const y = 260 + 120 * Math.sin(t * 0.0043 + 1.3);
-  const dx = 190 * 0.006 * Math.cos(t * 0.006);
-  const dy = 120 * 0.0043 * Math.cos(t * 0.0043 + 1.3);
-  return { x, y, heading: Math.atan2(dy, dx) };
+  const vx = 190 * 0.006 * Math.cos(t * 0.006);
+  const vy = 120 * 0.0043 * Math.cos(t * 0.0043 + 1.3);
+  return { x, y, vx, vy };
 }
 
 // Dark backing behind a text block so it reads over the flyover without a
@@ -148,11 +155,9 @@ export function createTitleScene(deps: TitleDeps): Scene & { notifyForfeit(): vo
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.heading + Math.PI / 2);
-      drawLayered(ctx, prepared, 0, 0);
-      ctx.restore();
+      const bank = poseFromVelocity(p.vx, p.vy, TITLE_POSE_SLOW, TITLE_POSE_FAST);
+      chopper.layers[LAYER.BODY].frame = poseFrameIndex(bank.dir, bank.intensity);
+      drawLayered(ctx, prepared, p.x, p.y);
 
       ctx.textAlign = 'center';
 

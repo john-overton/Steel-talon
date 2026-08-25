@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createInput } from '../../engine/input';
 import type { Sequencer, Song } from '../../engine/sequencer';
-import { attractCamera, attractChopper, createTitleScene, type TitleDevHook } from './title';
+import { poseFrameIndex, poseFromVelocity } from '../pose';
+import {
+  attractCamera,
+  attractChopper,
+  createTitleScene,
+  TITLE_POSE_FAST,
+  TITLE_POSE_SLOW,
+  type TitleDevHook,
+} from './title';
 
 function stubSequencer(): Sequencer & { played: Song[]; stopped: number } {
   const s = {
@@ -124,16 +132,26 @@ describe('attract mode paths', () => {
     expect(v).toBeLessThan(80);
     expect(Math.hypot(c.x - a.x, c.y - a.y)).toBeGreaterThan(2000); // net drift, no closed loop
   });
-  it('chopper stays on screen with margin and heading follows motion', () => {
+  it('chopper stays on screen with margin and velocity matches motion', () => {
     for (let t = 0; t < 20_000; t += 37) {
       const p = attractChopper(t);
       expect(p.x).toBeGreaterThan(60); expect(p.x).toBeLessThan(580);
       expect(p.y).toBeGreaterThan(60); expect(p.y).toBeLessThan(420);
     }
-    const p0 = attractChopper(100), p1 = attractChopper(101);
-    const motion = Math.atan2(p1.y - p0.y, p1.x - p0.x);
-    // heading within a quarter-turn of instantaneous motion (analytic vs finite difference)
-    const d = Math.abs(Math.atan2(Math.sin(p0.heading - motion), Math.cos(p0.heading - motion)));
-    expect(d).toBeLessThan(Math.PI / 4);
+    const p0 = attractChopper(100);
+    const p1 = attractChopper(101);
+    // analytic velocity within a pixel of the finite difference
+    expect(p0.vx).toBeCloseTo(p1.x - p0.x, 0);
+    expect(p0.vy).toBeCloseTo(p1.y - p0.y, 0);
+  });
+
+  it('title chopper pose thresholds produce banks over a flyover cycle', () => {
+    const seen = new Set<number>();
+    for (let t = 0; t < 3000; t++) {
+      const p = attractChopper(t);
+      const { dir, intensity } = poseFromVelocity(p.vx, p.vy, TITLE_POSE_SLOW, TITLE_POSE_FAST);
+      seen.add(poseFrameIndex(dir, intensity));
+    }
+    expect(seen.size).toBeGreaterThan(3); // neutral plus several bank poses
   });
 });
