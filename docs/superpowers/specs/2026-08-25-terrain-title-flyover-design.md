@@ -64,7 +64,7 @@ Placement is deterministic, so a later pass can promote specific decorations (e.
 The title becomes an attract-mode flyover of a per-boot-seeded archipelago:
 
 - **Camera:** drifts on a slow lissajous-style wander (~25 px/s, incommensurate x/y periods so the path doesn't visibly loop), scaled so it regularly crosses island plots.
-- **Chopper:** the existing prepared player sprite flies its own gentle curved path around and across the screen, rotors animating, with its shadow sprite offset below-right to sell altitude. It banks (existing bank frames) following its path tangent.
+- **Chopper:** the existing prepared player sprite flies its own gentle curved path around and across the screen, rotors animating, with a soft dark ellipse shadow drawn offset below-right on the water to sell altitude (no shadow sprite exists yet; it is a simple alpha ellipse). It leans into turns by rotating the sprite canvas a few degrees toward its path tangent (the player sprite has one body frame; a ctx rotation sells the bank — no new frames needed).
 - **Text:** the current 55% full-screen dim is removed. The title block ("STEEL TALON" / "OPERATION GREENFIRE"), the insert-coin prompt, the forfeit notice, dev hints, and seed readout each get a soft dark backing rectangle (or subtle shadow) so they stay readable over bright terrain.
 - **Flow unchanged:** two-press start, forfeit notice, F1/F2 dev hooks, seed display all behave exactly as today. The flyover seed is the boot seed shown on screen — the archipelago you admire is derived from the seed you'll fly.
 
