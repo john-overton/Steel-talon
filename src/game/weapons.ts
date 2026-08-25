@@ -9,17 +9,17 @@ export const CHAIN_INTERVAL = 0.25;     // 240 rpm
 export const MINIGUN_INTERVAL = 0.125;  // 480 rpm per barrel
 export const MISSILE_INTERVAL = 0.5;
 export const SALVO_SIZE = 10;
-export const SALVO_TICK_GAP = 3;        // one rocket per 3 ticks
-export const ROCKET_COOLDOWN = 20;      // seconds
-export const ROCKET_LAUNCH_SPEED = 240; // px/s
-export const ROCKET_ACCEL = 1800;       // px/s²
+export const SALVO_TICK_GAP = 6;        // one rocket per 3 ticks
+export const ROCKET_COOLDOWN = 8;       // 8 seconds
+export const ROCKET_LAUNCH_SPEED = 120; // px/s
+export const ROCKET_ACCEL = 1200;       // px/s²
 export const ROCKET_SPREAD = (4 * Math.PI) / 180;
 export const CHAIN_DMG = 0.75;
 export const MINIGUN_DMG = 0.5;
 export const ROCKET_DMG = 2;
 export const MISSILE_DMG = 3;
 export const MISSILE_SPEED = 600;
-export const FLASH_TICKS = 2; // moved here from entities
+export const FLASH_TICKS = 1; // moved here from entities
 
 const BULLET_SPEED = 840;
 
