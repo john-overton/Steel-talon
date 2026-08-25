@@ -26,8 +26,10 @@ import {
   tickParticles,
   tickPickups,
   type PickupKind,
+  type Vec2,
   type World,
 } from '../entities';
+import { reticleTarget } from '../aim';
 import { createHud, formatScore } from '../hud';
 import { PALETTE } from '../palette';
 import {
@@ -60,7 +62,7 @@ import {
   type WeaponState,
 } from '../weapons';
 import { CHOPPER_BODY, LAYER, createChopper } from '../sprites/player';
-import { createBoat } from '../sprites/boat';
+import { TURRET_LAYER, createBoat, turretFrame } from '../sprites/boat';
 import { createDelta } from '../sprites/delta';
 import { ENEMY_SHOT, ENEMY_SHOT_FRAME_TICKS, ROCKET, TRACER } from '../sprites/shots';
 import {
@@ -131,6 +133,23 @@ interface PreparedAssets {
   hud: ReturnType<typeof createHud>;
 }
 
+// Four corner brackets just outside the target's radius, HUD yellow.
+// Draw-only: computed in the draw pass, so it never touches game state.
+function drawReticle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.fillStyle = PALETTE[8];
+  const s = r + 4;  // half-size of the bracket box
+  const arm = 6;    // bracket arm length
+  const t = 2;      // stroke thickness
+  const l = Math.round(x - s);
+  const rt = Math.round(x + s);
+  const tp = Math.round(y - s);
+  const bt = Math.round(y + s);
+  ctx.fillRect(l, tp, arm, t);            ctx.fillRect(l, tp, t, arm);
+  ctx.fillRect(rt - arm, tp, arm, t);     ctx.fillRect(rt - t, tp, t, arm);
+  ctx.fillRect(l, bt - t, arm, t);        ctx.fillRect(l, bt - arm, t, arm);
+  ctx.fillRect(rt - arm, bt - t, arm, t); ctx.fillRect(rt - t, bt - arm, t, arm);
+}
+
 // The extra accessor is a minimal read-only test seam (playerPos itself
 // is a closure-private, reused object — never allocated per tick, never
 // exposed for mutation) so tests can assert the chopper rides the scroll.
@@ -144,6 +163,9 @@ export function createTopScene(deps: TopDeps): Scene & {
 } {
   // Reused closure-level objects — no per-tick allocation.
   const playerPos = { x: 0, y: 0 };
+  // Commanded player velocity in px/s, handed to tickEnemies so boat
+  // turrets can lead their shots. Reused — no per-tick allocation.
+  const playerVel: Vec2 = { x: 0, y: 0 };
   // Cosmetic bank state: ramped so held input leans in over POSE_RAMP_TICKS
   // and unwinds on release. Draw-side only — never touches gameplay position.
   const pose = createPoseTracker();
@@ -336,6 +358,8 @@ export function createTopScene(deps: TopDeps): Scene & {
       deps.camera.y = LEVEL_LENGTH - HEIGHT;
       playerPos.x = WIDTH / 2;
       playerPos.y = deps.camera.y + HEIGHT - 80;
+      playerVel.x = 0;
+      playerVel.y = 0;
 
       prevInput.weapon1 = false;
       prevInput.weapon2 = false;
@@ -407,6 +431,8 @@ export function createTopScene(deps: TopDeps): Scene & {
           dx *= SQRT1_2;
           dy *= SQRT1_2;
         }
+        playerVel.x = dx * SPEED;
+        playerVel.y = dy * SPEED;
         playerPos.x += dx * SPEED * dt;
         playerPos.y += dy * SPEED * dt;
         playerPos.x = Math.max(CHOPPER_HALF, Math.min(WIDTH - CHOPPER_HALF, playerPos.x));
@@ -455,7 +481,7 @@ export function createTopScene(deps: TopDeps): Scene & {
 
         tickBullets(world, dt, camera.y);
         tickEnemyBullets(world, dt, camera.y);
-        tickEnemies(world, dt, camera.y, playerPos);
+        tickEnemies(world, dt, camera.y, playerPos, playerVel);
         tickPickups(world, dt, camera.y, playerPos);
         tickParticles(world, dt);
 
@@ -570,6 +596,7 @@ export function createTopScene(deps: TopDeps): Scene & {
           assets.delta.sprite.layers[1].frame = Math.floor(ticks / 6) % 2;
           drawLayered(ctx, assets.delta, x, y);
         } else {
+          assets.boat.sprite.layers[TURRET_LAYER].frame = turretFrame(e.turretAngle);
           drawLayered(ctx, assets.boat, x, y);
         }
       });
@@ -597,6 +624,12 @@ export function createTopScene(deps: TopDeps): Scene & {
       if (!blinking) {
         assets.chopper.sprite.layers[LAYER.BODY].frame = poseFrameIndex(pose.dir, pose.intensity());
         drawLayered(ctx, assets.chopper, playerPos.x - camera.x, playerPos.y - camera.y);
+      }
+
+      // Targeting reticle on the selected weapon's lock (blink 2 on / 2 off).
+      if (overlay === 'playing' && Math.floor(ticks / 2) % 2 === 0) {
+        const lock = reticleTarget(world, run, playerPos.x, playerPos.y);
+        if (lock) drawReticle(ctx, lock.pos.x - camera.x, lock.pos.y - camera.y, lock.radius);
       }
 
       // Particles.
