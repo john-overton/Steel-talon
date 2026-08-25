@@ -4,7 +4,8 @@ import { createWorld } from './entities';
 import { createRun, grantWeapon, armMissiles, selectWeapon } from './run';
 import {
   CHAIN_DMG, createWeaponState, MINIGUN_DMG, MISSILE_DMG, ROCKET_ACCEL,
-  ROCKET_COOLDOWN, ROCKET_DMG, SALVO_SIZE, tickWeapons, type Mounts,
+  ROCKET_COOLDOWN, ROCKET_DMG, ROCKET_LAUNCH_SPEED, ROCKET_SPREAD, SALVO_SIZE,
+  tickWeapons, type Mounts,
 } from './weapons';
 
 const DT = 1 / 60;
@@ -108,8 +109,8 @@ describe('rockets (slot 3)', () => {
       expect(rk.accel).toBe(ROCKET_ACCEL);
       expect(rk.trail).toBe(true);
       // spread: mostly upward, slight x component allowed
-      expect(rk.vel.y).toBeLessThan(-220);
-      expect(Math.abs(rk.vel.x)).toBeLessThan(30);
+      expect(rk.vel.y).toBeLessThan(-ROCKET_LAUNCH_SPEED * Math.cos(ROCKET_SPREAD) + 1e-9);
+      expect(Math.abs(rk.vel.x)).toBeLessThanOrEqual(ROCKET_LAUNCH_SPEED * Math.sin(ROCKET_SPREAD));
     }
   });
 
