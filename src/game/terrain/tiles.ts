@@ -63,7 +63,10 @@ function bandTexture(band: Band, variant: number): PixelGrid {
           row += '.';
           continue;
         }
-        ch = roll < 65 ? tex.speckle[0] : roll < 100 ? tex.speckle[1] : tex.base;
+        // Remaining 70%: ~80% base, ~20% speckle split between i/k — same
+        // ratio as the other bands' speckle coverage.
+        const sub = roll - 30; // 0..69
+        ch = sub < 7 ? tex.speckle[0] : sub < 14 ? tex.speckle[1] : tex.base;
       } else if (tex.speckle.length > 0) {
         const roll = (h >>> 0) % 100;
         // ~20% speckle coverage using the hashed positions.
@@ -90,18 +93,18 @@ export function createTerrainRenderer(): TerrainRenderer {
   const cache = new Map<Band, HTMLCanvasElement[][]>();
   for (const band of TILED_BANDS) {
     const cases: HTMLCanvasElement[][] = [];
+    const texGrids = Array.from({ length: VARIANTS }, (_, variant) => bandTexture(band, variant));
     for (let mask = 0; mask < 16; mask++) {
       const variants: HTMLCanvasElement[] = [];
       for (let variant = 0; variant < VARIANTS; variant++) {
-        variants.push(buildCaseTile(band, mask, variant));
+        variants.push(buildCaseTile(mask, texGrids[variant]));
       }
       cases.push(variants);
     }
     cache.set(band, cases);
   }
 
-  function buildCaseTile(band: Band, mask: number, variant: number): HTMLCanvasElement {
-    const texGrid = bandTexture(band, variant);
+  function buildCaseTile(mask: number, texGrid: PixelGrid): HTMLCanvasElement {
     const rgba = new Uint8ClampedArray(TERRAIN_TILE * TERRAIN_TILE * 4);
     for (let py = 0; py < TERRAIN_TILE; py++) {
       for (let px = 0; px < TERRAIN_TILE; px++) {
