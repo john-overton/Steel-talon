@@ -9,6 +9,7 @@ import { createSceneManager } from '../engine/scene';
 import { createSequencer } from '../engine/sequencer';
 import { createTitleScene } from './scenes/title';
 import { createTopScene } from './scenes/top';
+import { createTerrainLayer } from './terrain';
 import { createWaterTilemap } from './sprites/tiles';
 
 type GameOverCb = (score: number, salvage: number) => void;
@@ -37,6 +38,7 @@ export function start(seed: number): void {
 
   const sequencer = createSequencer(audio);
   const water = createWaterTilemap();
+  const terrain = createTerrainLayer(seed);
   const scenes = createSceneManager();
 
   // Each run draws a fresh stream so a full replay of the level is
@@ -62,7 +64,7 @@ export function start(seed: number): void {
   // dynamic import keeps src/game/dev/ out of the production bundle.
   let devTools: import('./dev').DevTools | undefined;
   const title = createTitleScene({
-    input, audio, sequencer, water, seed,
+    input, audio, sequencer, water, terrain, seed,
     onStart: () => scenes.switchTo(top),
     dev: import.meta.env.DEV
       ? { poll: () => devTools?.poll() ?? null, open: (s) => devTools?.open(s) }

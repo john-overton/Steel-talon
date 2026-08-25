@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInput } from '../../engine/input';
 import type { Sequencer, Song } from '../../engine/sequencer';
-import { createTitleScene, type TitleDevHook } from './title';
+import { attractCamera, attractChopper, createTitleScene, type TitleDevHook } from './title';
 
 function stubSequencer(): Sequencer & { played: Song[]; stopped: number } {
   const s = {
@@ -23,6 +23,7 @@ function makeScene(overrides: { dev?: TitleDevHook } = {}) {
     audio: { unlock() {}, blip() {}, noise() {}, context: () => null },
     sequencer: seq,
     water: { tileSize: 16, tiles: [], pickTile: () => 0 },
+    terrain: { draw() {} },
     seed: 0xc0ffee,
     onStart: () => starts++,
     ...overrides,
@@ -111,5 +112,28 @@ describe('title scene flow', () => {
     const { scene } = makeScene({});
     scene.enter();
     scene.update(1 / 60); // must not throw
+  });
+});
+
+describe('attract mode paths', () => {
+  it('camera drifts smoothly and never visibly loops early', () => {
+    const a = attractCamera(0), b = attractCamera(60), c = attractCamera(36_000);
+    expect(a).toEqual(attractCamera(0)); // pure
+    const v = Math.hypot(b.x - a.x, b.y - a.y); // px per second
+    expect(v).toBeGreaterThan(5);
+    expect(v).toBeLessThan(80);
+    expect(Math.hypot(c.x - a.x, c.y - a.y)).toBeGreaterThan(2000); // net drift, no closed loop
+  });
+  it('chopper stays on screen with margin and heading follows motion', () => {
+    for (let t = 0; t < 20_000; t += 37) {
+      const p = attractChopper(t);
+      expect(p.x).toBeGreaterThan(60); expect(p.x).toBeLessThan(580);
+      expect(p.y).toBeGreaterThan(60); expect(p.y).toBeLessThan(420);
+    }
+    const p0 = attractChopper(100), p1 = attractChopper(101);
+    const motion = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+    // heading within a quarter-turn of instantaneous motion (analytic vs finite difference)
+    const d = Math.abs(Math.atan2(Math.sin(p0.heading - motion), Math.cos(p0.heading - motion)));
+    expect(d).toBeLessThan(Math.PI / 4);
   });
 });
