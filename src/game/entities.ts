@@ -3,6 +3,8 @@
 import { circlesOverlap } from '../engine/collide';
 import { createPool, type Pool } from '../engine/pool';
 import { HEIGHT } from '../engine/renderer';
+// aim.ts imports only types from this module, so this is acyclic at runtime.
+import { intercept } from './aim';
 import { PALETTE } from './palette';
 
 export interface Vec2 { x: number; y: number; }
@@ -43,6 +45,12 @@ export interface Enemy extends Entity {
   fireTimer: number;    // boats: seconds to next aimed shot
   baseX: number;        // deltas: weave center
   hasFired: boolean;    // deltas: single shot latch
+  sprayLeft: number;    // boats: shots remaining in the running spray (0 = idle)
+  sprayTick: number;    // boats: tick counter inside the spray
+  sprayVX: number;      // boats: cached unit aim direction (one-lead mode)
+  sprayVY: number;
+  sprayLead: boolean;   // boats: true = re-solve the intercept every shot
+  turretAngle: number;  // boats: radians; direction (sin θ, cos θ), 0 = down-screen
   score: number;
   salvageChance: number;
 }
@@ -84,6 +92,7 @@ function makeEnemy(): Enemy {
   return {
     ...makeEntity('enemy'), kind: 'enemy',
     enemyKind: 'boat', fireTimer: 0, baseX: 0, hasFired: false, score: 0, salvageChance: 0,
+    sprayLeft: 0, sprayTick: 0, sprayVX: 0, sprayVY: 1, sprayLead: false, turretAngle: 0,
   };
 }
 
@@ -200,15 +209,33 @@ export function tickParticles(w: World, dt: number): void {
   });
 }
 
-const BOAT_SHOT_SPEED = 280;
+export const BOAT_SHOT_SPEED = 280;
 const DELTA_SHOT_RANGE = 440;
+
+// Boat gunnery: bursts of SPRAY_SIZE shots SPRAY_TICK_GAP ticks apart, then
+// a re-arm wait in [SPRAY_INTERVAL_MIN, SPRAY_INTERVAL_MIN + SPRAY_INTERVAL_VAR).
+// Most sprays lead once and hold that solution; SPRAY_LEAD_CHANCE of them
+// re-solve every shot, so a player who only jinks after the first tracer
+// still gets punished occasionally.
+export const SPRAY_SIZE = 5;
+export const SPRAY_TICK_GAP = 4;
+export const SPRAY_LEAD_CHANCE = 0.10;
+export const SPRAY_SPREAD = (4 * Math.PI) / 180;
+export const SPRAY_INTERVAL_MIN = 2.8;
+export const SPRAY_INTERVAL_VAR = 0.8;
+export const TURRET_SLEW_RATE = 3.0;   // rad/s
+export const TURRET_BARREL_LEN = 16;   // px from boat center to muzzle
+
+const ZERO_VEL: Vec2 = { x: 0, y: 0 };
 
 // Delta weave: pos.x = baseX + sin(age * FREQ) * AMP. Exported because the
 // draw side derives the analytic bank velocity from the same numbers.
 export const DELTA_WEAVE_FREQ = 2.2;
 export const DELTA_WEAVE_AMP = 56;
 
-export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): void {
+export function tickEnemies(
+  w: World, dt: number, camY: number, player: Vec2, playerVel: Vec2 = ZERO_VEL,
+): void {
   w.enemies.forEachAlive((e) => {
     e.age += dt;
     if (e.enemyKind === 'delta') {
@@ -220,22 +247,66 @@ export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): v
     }
 
     if (e.enemyKind === 'boat') {
-      e.fireTimer -= dt;
-      if (e.fireTimer <= 0 && e.pos.y >= camY && e.pos.y <= camY + HEIGHT) {
-        const b = w.enemyBullets.spawn();
-        if (b) {
-          const dx = player.x - e.pos.x;
-          const dy = player.y - e.pos.y;
-          const dist = Math.hypot(dx, dy);
-          b.pos.x = e.pos.x; b.pos.y = e.pos.y; b.age = 0; b.radius = 4;
-          if (dist === 0) {
-            b.vel.x = 0; b.vel.y = BOAT_SHOT_SPEED;
-          } else {
-            b.vel.x = (dx / dist) * BOAT_SHOT_SPEED;
-            b.vel.y = (dy / dist) * BOAT_SHOT_SPEED;
+      // Aim direction (unit): the cached solution mid-spray in one-lead
+      // mode, a live intercept of the player otherwise (tracking while
+      // idle, re-solving per tick in re-lead mode).
+      let aimX: number;
+      let aimY: number;
+      if (e.sprayLeft > 0 && !e.sprayLead) {
+        aimX = e.sprayVX;
+        aimY = e.sprayVY;
+      } else {
+        const p = intercept(e.pos.x, e.pos.y, player.x, player.y, playerVel.x, playerVel.y, BOAT_SHOT_SPEED);
+        const dx = p.x - e.pos.x;
+        const dy = p.y - e.pos.y;
+        const d = Math.hypot(dx, dy) || 1;
+        aimX = dx / d;
+        aimY = dy / d;
+      }
+
+      // Start a spray when the timer expires on-screen; the mode roll and
+      // aim cache happen once, at spray start.
+      if (e.sprayLeft === 0) {
+        e.fireTimer -= dt;
+        if (e.fireTimer <= 0 && e.pos.y >= camY && e.pos.y <= camY + HEIGHT) {
+          e.sprayLeft = SPRAY_SIZE;
+          e.sprayTick = 0;
+          e.sprayLead = w.rng() < SPRAY_LEAD_CHANCE;
+          e.sprayVX = aimX;
+          e.sprayVY = aimY;
+        }
+      }
+
+      // Slew the turret toward the aim, rate-capped, short way around.
+      // Shots leave along the barrel: if the target outruns the traverse,
+      // they go where the turret points, not where the math wants.
+      const desired = Math.atan2(aimX, aimY);
+      let diff = desired - e.turretAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const maxTurn = TURRET_SLEW_RATE * dt;
+      e.turretAngle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+      while (e.turretAngle > Math.PI) e.turretAngle -= Math.PI * 2;
+      while (e.turretAngle < -Math.PI) e.turretAngle += Math.PI * 2;
+
+      if (e.sprayLeft > 0) {
+        if (e.sprayTick % SPRAY_TICK_GAP === 0) {
+          const b = w.enemyBullets.spawn();
+          if (b) {
+            const a = e.turretAngle + (w.rng() * 2 - 1) * SPRAY_SPREAD;
+            b.pos.x = e.pos.x + Math.sin(a) * TURRET_BARREL_LEN;
+            b.pos.y = e.pos.y + Math.cos(a) * TURRET_BARREL_LEN;
+            b.age = 0;
+            b.radius = 4;
+            b.vel.x = Math.sin(a) * BOAT_SHOT_SPEED;
+            b.vel.y = Math.cos(a) * BOAT_SHOT_SPEED;
+          }
+          e.sprayLeft--;
+          if (e.sprayLeft === 0) {
+            e.fireTimer = SPRAY_INTERVAL_MIN + w.rng() * SPRAY_INTERVAL_VAR;
           }
         }
-        e.fireTimer = 2.0 + w.rng() * 0.8;
+        e.sprayTick++;
       }
     } else if (e.enemyKind === 'delta') {
       if (!e.hasFired && Math.abs(player.y - e.pos.y) < DELTA_SHOT_RANGE) {
@@ -311,6 +382,8 @@ export function spawnBoat(w: World, x: number, y: number): Enemy | undefined {
   e.hp = 3; e.radius = 20; e.age = 0;
   e.fireTimer = 2.0 + w.rng() * 0.8;
   e.baseX = x; e.hasFired = false;
+  e.sprayLeft = 0; e.sprayTick = 0; e.sprayVX = 0; e.sprayVY = 1;
+  e.sprayLead = false; e.turretAngle = 0;
   e.score = 100; e.salvageChance = 0.25;
   return e;
 }
@@ -323,6 +396,8 @@ export function spawnDelta(w: World, x: number, y: number): Enemy | undefined {
   e.vel.x = 0; e.vel.y = 240;
   e.hp = 2; e.radius = 16; e.age = 0;
   e.baseX = x; e.hasFired = false; e.fireTimer = 0;
+  e.sprayLeft = 0; e.sprayTick = 0; e.sprayVX = 0; e.sprayVY = 1;
+  e.sprayLead = false; e.turretAngle = 0;
   e.score = 150; e.salvageChance = 0.40;
   return e;
 }

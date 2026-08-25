@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HEIGHT } from '../engine/renderer';
 import { mulberry32 } from '../engine/rng';
 import {
+  BOAT_SHOT_SPEED,
   CAM_MARGIN,
   collideBulletsEnemies,
   collideEnemiesPlayer,
@@ -12,11 +13,17 @@ import {
   spawnDelta,
   spawnPickup,
   spawnSmoke,
+  SPRAY_INTERVAL_MIN,
+  SPRAY_INTERVAL_VAR,
+  SPRAY_SIZE,
+  SPRAY_TICK_GAP,
   tickBullets,
   tickEnemies,
   tickEnemyBullets,
   tickParticles,
   tickPickups,
+  TURRET_BARREL_LEN,
+  TURRET_SLEW_RATE,
 } from './entities';
 
 const DT = 1 / 60;
@@ -155,6 +162,8 @@ describe('typed spawns', () => {
     expect(e!.salvageChance).toBeCloseTo(0.25);
     expect(e!.fireTimer).toBeGreaterThanOrEqual(2.0);
     expect(e!.fireTimer).toBeLessThanOrEqual(2.8);
+    expect(e!.sprayLeft).toBe(0);
+    expect(e!.turretAngle).toBe(0);
   });
 
   it('spawnDelta fills delta fields', () => {
@@ -256,27 +265,140 @@ describe('pickups', () => {
 });
 
 describe('enemy behaviors', () => {
-  it('boat fires an aimed shot when timer elapses on-screen', () => {
+  function tickBoat(w: ReturnType<typeof createWorld>, n: number, player = { x: 200, y: 300 }, vel = { x: 0, y: 0 }) {
+    for (let i = 0; i < n; i++) tickEnemies(w, 1 / 60, 0, player, vel);
+  }
+
+  it('boat fires a 5-shot spray at 4-tick gaps, then re-arms in [2.8, 3.6)', () => {
     const w = createWorld(mulberry32(7));
-    const boat = spawnBoat(w, 100, 100)!;
-    boat.fireTimer = 0.01;
-    tickEnemies(w, 1 / 60, 0, { x: 200, y: 300 });
-    expect(w.enemyBullets.countAlive()).toBe(1);
-    const b = w.enemyBullets.items.find((x) => x.alive)!;
-    const speed = Math.hypot(b.vel.x, b.vel.y);
-    expect(speed).toBeCloseTo(280, 1);
-    expect(b.vel.x).toBeGreaterThan(0); // aimed right-down toward (200,300)
-    expect(b.vel.y).toBeGreaterThan(0);
-    expect(b.radius).toBe(4);
-    expect(boat.fireTimer).toBeGreaterThan(1.9); // reset
+    const e = spawnBoat(w, 320, 100)!;
+    e.vel.y = 0;
+    e.fireTimer = 0.01;
+    // 30 ticks: the spray (ticks 0..16) is done and no shot has yet left
+    // the despawn band (280 px/s from y≈116 stays well inside 480+64).
+    const counts: number[] = [];
+    // The re-arm timer is read the tick the spray ends: it starts ticking
+    // down again immediately, so a later read is already partly spent.
+    let rearm = Infinity;
+    let spraying = false;
+    for (let i = 0; i < 30; i++) {
+      tickEnemies(w, 1 / 60, 0, { x: 200, y: 300 }, { x: 0, y: 0 });
+      if (spraying && e.sprayLeft === 0) rearm = e.fireTimer;
+      spraying = e.sprayLeft > 0;
+      counts.push(w.enemyBullets.countAlive());
+    }
+    expect(w.enemyBullets.countAlive()).toBe(SPRAY_SIZE);
+    // Shots land one per SPRAY_TICK_GAP ticks: find the ticks where the
+    // count increments and check consecutive gaps.
+    const shotTicks = counts
+      .map((c, i) => (c > (counts[i - 1] ?? 0) ? i : -1))
+      .filter((i) => i >= 0);
+    expect(shotTicks).toHaveLength(SPRAY_SIZE);
+    for (let i = 1; i < shotTicks.length; i++) {
+      expect(shotTicks[i] - shotTicks[i - 1]).toBe(SPRAY_TICK_GAP);
+    }
+    expect(e.sprayLeft).toBe(0);
+    expect(rearm).toBeGreaterThanOrEqual(SPRAY_INTERVAL_MIN);
+    expect(rearm).toBeLessThan(SPRAY_INTERVAL_MIN + SPRAY_INTERVAL_VAR);
   });
 
   it('boat holds fire while off-screen', () => {
-    const w = createWorld(mulberry32(7));
-    const boat = spawnBoat(w, 100, -100)!;
-    boat.fireTimer = 0.01;
-    tickEnemies(w, 1 / 60, 0, { x: 200, y: 300 });
+    const w = createWorld(mulberry32(1));
+    const e = spawnBoat(w, 320, -CAM_MARGIN)!;
+    e.vel.y = 0;
+    e.fireTimer = 0.01;
+    tickBoat(w, 10);
     expect(w.enemyBullets.countAlive()).toBe(0);
+  });
+
+  it('re-lead sprays occur at roughly the 10% seeded rate', () => {
+    const w = createWorld(mulberry32(42));
+    const e = spawnBoat(w, 320, 100)!;
+    e.vel.y = 0;
+    let leads = 0;
+    for (let s = 0; s < 200; s++) {
+      e.fireTimer = 0.001;
+      e.sprayLeft = 0;
+      tickBoat(w, 1);
+      if (e.sprayLead) leads++;
+      e.sprayLeft = 0; // abort the spray; we only sample the mode roll
+    }
+    expect(leads).toBeGreaterThan(5);
+    expect(leads).toBeLessThan(45);
+  });
+
+  it('one-lead spray converges near a straight-moving player', () => {
+    // spawnBoat draws first (fireTimer), so the mode roll is the 2nd draw:
+    // seed 4 gives 0.333 >= SPRAY_LEAD_CHANCE → one-lead (seed 3 re-leads).
+    const w = createWorld(mulberry32(4));
+    const e = spawnBoat(w, 320, 100)!;
+    e.vel.y = 0;
+    e.turretAngle = Math.atan2(200 - 320, 300 - 100); // pre-aimed near the solution
+    e.fireTimer = 0.001;
+    const player = { x: 200, y: 300 };
+    const vel = { x: 180, y: 0 };
+    // Advance world and player together for 2 seconds.
+    let minDist = Infinity;
+    for (let i = 0; i < 120; i++) {
+      tickEnemies(w, 1 / 60, 0, player, vel);
+      tickEnemyBullets(w, 1 / 60, 0);
+      player.x += vel.x / 60;
+      w.enemyBullets.forEachAlive((b) => {
+        minDist = Math.min(minDist, Math.hypot(b.pos.x - player.x, b.pos.y - player.y));
+      });
+    }
+    // Leading + ±4° jitter + slew: at least one shot passes close.
+    expect(minDist).toBeLessThan(30);
+  });
+
+  it('turret slews toward the player at the capped rate, short way around', () => {
+    const w = createWorld(mulberry32(1));
+    const e = spawnBoat(w, 320, 100)!;
+    e.vel.y = 0;
+    e.fireTimer = 999; // never spray; just track
+    e.turretAngle = 0;
+    // Player up-left of the boat: desired angle is far from 0.
+    tickBoat(w, 1, { x: 100, y: -100 }, { x: 0, y: 0 });
+    expect(Math.abs(e.turretAngle)).toBeCloseTo(TURRET_SLEW_RATE / 60, 5);
+    const before = e.turretAngle;
+    tickBoat(w, 60, { x: 100, y: -100 }, { x: 0, y: 0 });
+    const desired = Math.atan2(100 - 320, -100 - 100);
+    // After a second it has converged (|desired| < π so no wrap needed here;
+    // the step-cap assertion above proves the rate limit).
+    expect(e.turretAngle).toBeCloseTo(desired, 3);
+    expect(Math.abs(e.turretAngle - before)).toBeLessThanOrEqual(TURRET_SLEW_RATE + 1e-9);
+  });
+
+  it('spray shots spawn from the barrel tip along the turret angle', () => {
+    const w = createWorld(mulberry32(1));
+    const e = spawnBoat(w, 320, 100)!;
+    e.vel.y = 0;
+    e.fireTimer = 0.001;
+    // Player straight below: turret rests at 0 already.
+    tickBoat(w, 2, { x: 320, y: 400 });
+    let checked = false;
+    w.enemyBullets.forEachAlive((b) => {
+      expect(Math.abs(b.pos.x - 320)).toBeLessThan(2); // ±4° jitter over 16px
+      expect(b.pos.y).toBeGreaterThan(100 + TURRET_BARREL_LEN - 2);
+      expect(b.vel.y).toBeGreaterThan(0); // flying down toward the player
+      expect(Math.hypot(b.vel.x, b.vel.y)).toBeCloseTo(BOAT_SHOT_SPEED, 5);
+      checked = true;
+    });
+    expect(checked).toBe(true);
+  });
+
+  it('sprays are deterministic under a fixed seed', () => {
+    const run = (seed: number) => {
+      const w = createWorld(mulberry32(seed));
+      const e = spawnBoat(w, 320, 100)!;
+      e.vel.y = 0;
+      e.fireTimer = 0.001;
+      for (let i = 0; i < 60; i++) tickEnemies(w, 1 / 60, 0, { x: 250, y: 350 }, { x: 90, y: 0 });
+      const out: number[] = [];
+      w.enemyBullets.forEachAlive((b) => out.push(b.pos.x, b.pos.y, b.vel.x, b.vel.y));
+      return out;
+    };
+    expect(run(9)).toEqual(run(9));
   });
 
   it('delta weaves as a pure function of age', () => {
