@@ -25,7 +25,7 @@ interface PreparedEntry {
 export interface ExplorerDeps { input: InputSource; onExit(): void; }
 
 export function createExplorerScene(deps: ExplorerDeps): Scene {
-  const modules = import.meta.glob('../sprites/*.ts', { eager: true }) as Record<string, Record<string, unknown>>;
+  const modules = import.meta.glob(['../sprites/*.ts', '!../sprites/*.test.ts'], { eager: true }) as Record<string, Record<string, unknown>>;
   const catalog = buildCatalog(modules);
   const preparedCache = new Map<CatalogEntry, PreparedEntry>();
   let index = 0;
