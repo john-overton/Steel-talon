@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInput } from '../../engine/input';
 import type { Sequencer, Song } from '../../engine/sequencer';
-import { createTitleScene } from './title';
+import { createTitleScene, type TitleDevHook } from './title';
 
 function stubSequencer(): Sequencer & { played: Song[]; stopped: number } {
   const s = {
@@ -14,7 +14,7 @@ function stubSequencer(): Sequencer & { played: Song[]; stopped: number } {
   return s;
 }
 
-function makeScene() {
+function makeScene(overrides: { dev?: TitleDevHook } = {}) {
   const input = createInput();
   const seq = stubSequencer();
   let starts = 0;
@@ -25,6 +25,7 @@ function makeScene() {
     water: { tileSize: 16, tiles: [], pickTile: () => 0 },
     seed: 0xc0ffee,
     onStart: () => starts++,
+    ...overrides,
   });
   return { input, seq, scene, starts: () => starts };
 }
@@ -91,5 +92,24 @@ describe('title scene flow', () => {
     scene.enter();
     scene.enter();
     expect(scene.debugForfeitTicks()).toBe(0);
+  });
+
+  it('polls the dev hook and opens the picked screen without starting a run', () => {
+    const opened: string[] = [];
+    let pick: 'sandbox' | 'explorer' | null = null;
+    const { scene, starts } = makeScene({
+      dev: { poll: () => { const p = pick; pick = null; return p; }, open: (s) => opened.push(s) },
+    });
+    scene.enter();
+    pick = 'sandbox';
+    scene.update(1 / 60);
+    expect(opened).toEqual(['sandbox']);
+    expect(starts()).toBe(0); // onStart must not fire
+  });
+
+  it('without a dev hook, behavior is unchanged', () => {
+    const { scene } = makeScene({});
+    scene.enter();
+    scene.update(1 / 60); // must not throw
   });
 });

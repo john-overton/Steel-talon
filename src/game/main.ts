@@ -58,10 +58,25 @@ export function start(seed: number): void {
       scenes.switchTo(title);
     },
   });
+  // Dev screens (F1 sandbox / F2 explorer) load only in the dev server; the
+  // dynamic import keeps src/game/dev/ out of the production bundle.
+  let devTools: import('./dev').DevTools | undefined;
   const title = createTitleScene({
     input, audio, sequencer, water, seed,
     onStart: () => scenes.switchTo(top),
+    dev: import.meta.env.DEV
+      ? { poll: () => devTools?.poll() ?? null, open: (s) => devTools?.open(s) }
+      : undefined,
   });
+  if (import.meta.env.DEV) {
+    void import('./dev').then((m) => {
+      devTools = m.createDevTools({
+        input, audio, sequencer, camera: renderer.camera, water, makeRng,
+        switchTo: (s) => scenes.switchTo(s),
+        toTitle: () => scenes.switchTo(title),
+      });
+    });
+  }
   scenes.switchTo(title);
 
   const loop = createLoop(
