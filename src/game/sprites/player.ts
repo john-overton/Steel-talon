@@ -137,17 +137,17 @@ export const MISSILE: SpriteDef = {
   anchors: { mount: [2, 0] },
 };
 
-// 59x59 rotor blur disc, hub at the center. Four blades sweep 45 degrees
+// 117x117 rotor blur disc, hub at the center. Four blades sweep 45 degrees
 // between the frames (frame 0 is a +, frame 1 an x) and the dashed blur
 // arcs rotate with them, so the disc reads as spinning rather than
 // flickering between two palettes.
-const ROTOR_SIZE = 59;
-const ROTOR_HUB = 29;
-const BLADE_MIN = 5;
-const BLADE_MAX = 28;
+const ROTOR_SIZE = 117;
+const ROTOR_HUB = 58;
+const BLADE_MIN = 10;
+const BLADE_MAX = 56;
 
 // [radius, dash period] of the blur arcs; dashes are 2px long.
-const BLUR_ARCS: Array<[number, number]> = [[27, 7], [19, 5]];
+const BLUR_ARCS: Array<[number, number]> = [[54, 7], [38, 5]];
 
 function rotorFrame(baseAngle: number, arcPhase: number): string[] {
   const grid = Array.from({ length: ROTOR_SIZE }, () =>
@@ -163,9 +163,9 @@ function rotorFrame(baseAngle: number, arcPhase: number): string[] {
     for (let r = BLADE_MIN; r <= BLADE_MAX; r++) {
       const x = ROTOR_HUB + Math.round(dx * r);
       const y = ROTOR_HUB + Math.round(dy * r);
-      set(x, y, r > 22 ? 'o' : 'n');
+      set(x, y, r > 44 ? 'o' : 'n');
       // One pixel of chord on the trailing side, dropped near the tip.
-      if (r < 24) set(x + Math.round(-dy), y + Math.round(dx), 'o');
+      if (r < 48) set(x + Math.round(-dy), y + Math.round(dx), 'o');
     }
   }
   for (const [radius, period] of BLUR_ARCS) {
@@ -181,12 +181,12 @@ function rotorFrame(baseAngle: number, arcPhase: number): string[] {
     }
   }
   // Hub: a bright gunmetal boss ringed in gray and outlined.
-  for (let y = ROTOR_HUB - 3; y <= ROTOR_HUB + 3; y++) {
-    for (let x = ROTOR_HUB - 3; x <= ROTOR_HUB + 3; x++) {
+  for (let y = ROTOR_HUB - 6; y <= ROTOR_HUB + 6; y++) {
+    for (let x = ROTOR_HUB - 6; x <= ROTOR_HUB + 6; x++) {
       const d = Math.abs(x - ROTOR_HUB) + Math.abs(y - ROTOR_HUB);
-      if (d <= 2) set(x, y, 'm');
-      else if (d <= 4) set(x, y, 'n');
-      else if (d <= 5) set(x, y, '1');
+      if (d <= 4) set(x, y, 'm');
+      else if (d <= 8) set(x, y, 'n');
+      else if (d <= 10) set(x, y, '1');
     }
   }
   return grid.map((row) => row.join(''));

@@ -25,6 +25,13 @@ describe('chopper sprite', () => {
     expect(CHOPPER_ROTOR.anchors.hub).toBeDefined();
   });
 
+  it('rotor disc is 117x117 with the hub centered', () => {
+    expect(CHOPPER_ROTOR.frames[0].width).toBe(117);
+    expect(CHOPPER_ROTOR.frames[0].height).toBe(117);
+    expect(CHOPPER_ROTOR.frames[1].width).toBe(117);
+    expect(CHOPPER_ROTOR.anchors.hub).toEqual([58, 58]);
+  });
+
   it('every anchor lies inside its sprite bounds', () => {
     for (const def of [CHOPPER_BODY, CHOPPER_ROTOR, ROCKET_POD, MISSILE]) {
       const { width, height } = def.frames[0];
@@ -84,10 +91,11 @@ describe('chopper sprite', () => {
     expect(lx + rx).toBe(2 * nx);
   });
 
-  it('layer offsets keep every layer inside the 64x64 body footprint', () => {
+  it('layer offsets keep every non-rotor layer inside the 64x64 body footprint', () => {
     const chopper = createChopper();
     const offsets = layerOffsets(chopper);
     chopper.layers.forEach((layer, i) => {
+      if (i === LAYER.ROTOR) return; // rotor disc intentionally overhangs the body
       const { width, height } = layer.def.frames[0];
       expect(offsets[i].x).toBeGreaterThanOrEqual(0);
       expect(offsets[i].y).toBeGreaterThanOrEqual(0);
