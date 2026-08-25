@@ -35,6 +35,8 @@ npm run build        # static production build to dist/
 npm run typecheck    # strict TypeScript check
 ```
 
+`npm run dev` exposes two dev-only screens from the title screen: F1 opens a sandbox (waves off, full arsenal, spawn any enemy/pickup) and F2 opens an object explorer (browse every sprite at 1x/2x/4x). Both are loaded via a dynamic import gated on `import.meta.env.DEV` and do not exist in production builds (`npm run build`).
+
 ## Testing
 
 Development is test-driven; the deterministic core (seeded RNG, fixed timestep, pooled entities) is designed to be tested headlessly.
