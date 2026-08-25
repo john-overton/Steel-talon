@@ -9,23 +9,53 @@ describe('drone boat sprite', () => {
     expect(BOAT_HULL.frames[0].height).toBe(32);
   });
 
-  it('turret has 16 rotation frames, all 12x12, mounted at the rotation centre', () => {
+  it('turret has 16 rotation frames, all 16x16, mounted at the rotation centre', () => {
     expect(BOAT_TURRET.frames).toHaveLength(16);
     for (const f of BOAT_TURRET.frames) {
-      expect(f.width).toBe(12);
-      expect(f.height).toBe(12);
+      expect(f.width).toBe(16);
+      expect(f.height).toBe(16);
     }
-    expect(BOAT_TURRET.anchors.mount).toEqual([6, 4]);
+    expect(BOAT_TURRET.anchors.mount).toEqual([8, 8]);
   });
 
-  it('frame 0 points the barrel down, frame 4 points it right', () => {
+  it('the barrel survives rotation and points along each cardinal frame', () => {
+    const [mx, my] = BOAT_TURRET.anchors.mount;
     const alphaAt = (f: number, x: number, y: number) =>
-      BOAT_TURRET.frames[f].rgba[(y * 12 + x) * 4 + 3];
-    // Base art: barrel pixels below the mount (6,10 opaque), nothing at (11,4).
-    expect(alphaAt(0, 6, 10)).toBe(255);
-    expect(alphaAt(0, 11, 4)).toBe(0);
-    // Rotated +90° (frame 4): barrel extends right of the mount.
-    expect(alphaAt(4, 11, 4)).toBe(255);
+      BOAT_TURRET.frames[f].rgba[(y * 16 + x) * 4 + 3];
+    // Beyond BODY_R the only opaque pixels are barrel; the box ends at r 5.
+    const BODY_R = 6;
+    // Is anything opaque past the body radius along a unit direction?
+    const barrelReaches = (f: number, dx: number, dy: number) => {
+      for (let r = BODY_R; r <= 7; r++) {
+        if (alphaAt(f, mx + dx * r, my + dy * r) === 255) return true;
+      }
+      return false;
+    };
+
+    // Frame 0 (base art) aims down-screen and nowhere else.
+    expect(barrelReaches(0, 0, 1)).toBe(true);
+    expect(barrelReaches(0, 1, 0)).toBe(false);
+    expect(barrelReaches(0, -1, 0)).toBe(false);
+    expect(barrelReaches(0, 0, -1)).toBe(false);
+
+    // +90° right, 180° up, -90° left — each keeps the barrel, exclusively.
+    expect(barrelReaches(4, 1, 0)).toBe(true);
+    expect(barrelReaches(4, 0, 1)).toBe(false);
+    expect(barrelReaches(8, 0, -1)).toBe(true);
+    expect(barrelReaches(8, 0, 1)).toBe(false);
+    expect(barrelReaches(12, -1, 0)).toBe(true);
+    expect(barrelReaches(12, 0, 1)).toBe(false);
+  });
+
+  it('no rotation frame clips the barrel away', () => {
+    const [mx, my] = BOAT_TURRET.anchors.mount;
+    for (let f = 0; f < 16; f++) {
+      const theta = (f * Math.PI * 2) / 16;
+      // Barrel tip direction for this frame: (sin θ, cos θ), radius ~7.
+      const x = Math.round(mx + Math.sin(theta) * 6);
+      const y = Math.round(my + Math.cos(theta) * 6);
+      expect(BOAT_TURRET.frames[f].rgba[(y * 16 + x) * 4 + 3]).toBe(255);
+    }
   });
 
   it('turretFrame quantizes angles to the nearest of 16 steps, wrapping', () => {

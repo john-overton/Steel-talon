@@ -58,22 +58,30 @@ export const BOAT_HULL: SpriteDef = {
   anchors: { turret: [24, 20] },
 };
 
-// 12x12 turret base grid: gunmetal box with a sloped rear, a cupola hatch on
+// 16x16 turret base grid: gunmetal box with a sloped rear, a cupola hatch on
 // the lit roof, mantlet shoulders, and the barrel pointing down toward the bow
 // (the turretAngle = 0 rest pose). Rotation frames are generated from it below.
+// The art itself is 12x12, padded (+2 columns, +4 rows) so the pivot sits at
+// the grid centre [8, 8] with >= 7px of margin on every side — the barrel tip
+// reaches r ~ 7, so this is the smallest box in which it survives rotation to
+// any heading instead of being clipped off.
 const TURRET_BASE = parseGrid([
-  '....1111....',
-  '...1mmmm1...',
-  '..1mmmmmm1..',
-  '.1mmnnnnmm1.',
-  '.1mmn11nmm1.',
-  '.1mmnnnnmm1.',
-  '.1mmmmmmmm1.',
-  '.1oommmmoo1.',
-  '..1o1nn1o1..',
-  '....1nn1....',
-  '....1nn1....',
-  '....1111....',
+  '................',
+  '................',
+  '................',
+  '................',
+  '......1111......',
+  '.....1mmmm1.....',
+  '....1mmmmmm1....',
+  '...1mmnnnnmm1...',
+  '...1mmn11nmm1...',
+  '...1mmnnnnmm1...',
+  '...1mmmmmmmm1...',
+  '...1oommmmoo1...',
+  '....1o1nn1o1....',
+  '......1nn1......',
+  '......1nn1......',
+  '......1111......',
 ], PALETTE);
 
 export const TURRET_STEPS = 16;
@@ -112,9 +120,9 @@ function rotateGridAny(grid: PixelGrid, angle: number, cx: number, cy: number): 
 
 export const BOAT_TURRET: SpriteDef = {
   frames: Array.from({ length: TURRET_STEPS }, (_, i) =>
-    i === 0 ? TURRET_BASE : rotateGridAny(TURRET_BASE, i * TURRET_STEP, 6, 4),
+    i === 0 ? TURRET_BASE : rotateGridAny(TURRET_BASE, i * TURRET_STEP, 8, 8),
   ),
-  anchors: { mount: [6, 4] },
+  anchors: { mount: [8, 8] },
 };
 
 // Nearest rotation frame for a turret angle (radians, 0 = down-screen,
