@@ -7,10 +7,14 @@
 // highlight, a = lit deck, c = olive, d = shaded olive, e = dark green-gray,
 // 1 = panel lines / outline; g = dark blue frame, j = cyan glass, k = glass
 // glint; m/n/o = gunmetal, gray, dark gray (guns, engines, rotor); r = red
-// rocket tips, l = white missile tip, 8 = wingtip light.
+// rocket tips, l = white missile tip, 8 = wingtip light. The body ships as
+// 17 pose frames (buildPoseFrames): frame 0 the neutral airframe, the rest
+// generated bank/pitch warps in poseFrameIndex() order. Anchors are shared
+// across all frames.
 import { parseGrid, type LayeredSprite, type SpriteDef } from '../../engine/sprite';
 import { PALETTE } from '../palette';
 import { MUZZLE_FLASH } from './shots';
+import { buildPoseFrames } from './poses';
 
 // 64x64 airframe, nose up-screen. Nose chin cannon (rows 2-7) into the
 // sensor housing (8-13), tandem canopy with three frame bands (14-29),
@@ -87,7 +91,7 @@ const BODY_ROWS = [
 ];
 
 export const CHOPPER_BODY: SpriteDef = {
-  frames: [parseGrid(BODY_ROWS, PALETTE)],
+  frames: buildPoseFrames(parseGrid(BODY_ROWS, PALETTE)),
   anchors: {
     mast: [32, 34],
     podL: [9, 33],

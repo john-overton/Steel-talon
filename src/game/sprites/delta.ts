@@ -6,9 +6,12 @@
 // skin, 6 = upper-wing sheen, 7 = leading-edge highlight; o/n/m = fuselage
 // grays (shadow, side, lit spine), 1 = exhaust nozzle, panel seams, canopy
 // frame and nose tip, f = canopy glass with a k glint, k = wing chevrons;
-// 5/8 = jet flame body and core.
+// 5/8 = jet flame body and core. The body ships as 17 pose frames
+// (buildPoseFrames): frame 0 the neutral airframe, the rest generated
+// bank/pitch warps in poseFrameIndex() order. Anchors are shared.
 import { parseGrid, type LayeredSprite, type SpriteDef } from '../../engine/sprite';
 import { PALETTE } from '../palette';
+import { buildPoseFrames } from './poses';
 
 // 48x32. Full-width trailing edge at the top (row 0), leading edges sweeping
 // in one column per row to a two-pixel nose at the bottom. Down the
@@ -54,7 +57,7 @@ const BODY_ROWS = [
 ];
 
 export const DELTA_BODY: SpriteDef = {
-  frames: [parseGrid(BODY_ROWS, PALETTE)],
+  frames: buildPoseFrames(parseGrid(BODY_ROWS, PALETTE)),
   // Rear centreline, at the lip of the exhaust nozzle on the trailing edge.
   anchors: { tail: [24, 5] },
 };

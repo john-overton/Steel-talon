@@ -3,8 +3,7 @@ import { layerOffsets } from '../../engine/sprite';
 import { createDelta, DELTA_BODY, DELTA_JET } from './delta';
 
 describe('delta drone sprite', () => {
-  it('body is a single 48x32 frame', () => {
-    expect(DELTA_BODY.frames).toHaveLength(1);
+  it('body frame 0 is the neutral 48x32 airframe', () => {
     expect(DELTA_BODY.frames[0].width).toBe(48);
     expect(DELTA_BODY.frames[0].height).toBe(32);
   });
@@ -55,5 +54,18 @@ describe('delta drone sprite', () => {
     expect(offsets[1].y).toBeGreaterThanOrEqual(0);
     expect(offsets[1].x + jet.width).toBeLessThanOrEqual(48);
     expect(offsets[1].y + jet.height).toBeLessThanOrEqual(32);
+  });
+});
+
+describe('delta pose frames', () => {
+  it('has 17 pose frames, all 48x32, frame 0 neutral', () => {
+    expect(DELTA_BODY.frames).toHaveLength(17);
+    for (const f of DELTA_BODY.frames) {
+      expect(f.width).toBe(48);
+      expect(f.height).toBe(32);
+    }
+    // Array.from rather than Node's Buffer: tsconfig lib is ES2022 + DOM only.
+    expect(Array.from(DELTA_BODY.frames[1].rgba))
+      .not.toEqual(Array.from(DELTA_BODY.frames[0].rgba));
   });
 });

@@ -11,8 +11,7 @@ import {
 import { MUZZLE_FLASH } from './shots';
 
 describe('chopper sprite', () => {
-  it('body is a single 64x64 frame', () => {
-    expect(CHOPPER_BODY.frames).toHaveLength(1);
+  it('body frame 0 is the neutral 64x64 airframe', () => {
     expect(CHOPPER_BODY.frames[0].width).toBe(64);
     expect(CHOPPER_BODY.frames[0].height).toBe(64);
   });
@@ -111,5 +110,18 @@ describe('chopper sprite', () => {
     const mast = CHOPPER_BODY.anchors.mast;
     expect(offsets[LAYER.ROTOR].x + hub[0]).toBe(mast[0]);
     expect(offsets[LAYER.ROTOR].y + hub[1]).toBe(mast[1]);
+  });
+});
+
+describe('chopper pose frames', () => {
+  it('has 17 pose frames, all 64x64, frame 0 neutral', () => {
+    expect(CHOPPER_BODY.frames).toHaveLength(17);
+    for (const f of CHOPPER_BODY.frames) {
+      expect(f.width).toBe(64);
+      expect(f.height).toBe(64);
+    }
+    // Array.from rather than Node's Buffer: tsconfig lib is ES2022 + DOM only.
+    expect(Array.from(CHOPPER_BODY.frames[1].rgba))
+      .not.toEqual(Array.from(CHOPPER_BODY.frames[0].rgba));
   });
 });
