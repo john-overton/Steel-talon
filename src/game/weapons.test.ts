@@ -31,11 +31,11 @@ function run60(w: ReturnType<typeof createWorld>, r: ReturnType<typeof createRun
 }
 
 describe('chain gun (slot 1)', () => {
-  it('fires 2 shots per second at dmg 0.75 from the nose', () => {
+  it('fires 4 shots per second at dmg 0.75 from the nose', () => {
     const w = createWorld(mulberry32(1));
     const r = createRun();
     const { fired } = run60(w, r, true, 60);
-    expect(fired.filter((f) => f === 'chain')).toHaveLength(2);
+    expect(fired.filter((f) => f === 'chain')).toHaveLength(4);
     const b = w.bullets.items.find((x) => x.alive)!;
     expect(b.dmg).toBe(CHAIN_DMG);
     expect(b.pos.x).toBe(320);
@@ -73,15 +73,15 @@ describe('chain gun (slot 1)', () => {
 });
 
 describe('miniguns (slot 2)', () => {
-  it('fires 4 shots/sec from both pods at dmg 1', () => {
+  it('fires 8 shots/sec from both pods at dmg 0.5', () => {
     const w = createWorld(mulberry32(1));
     const r = createRun();
     grantWeapon(r, 'miniguns');
     const { fired } = run60(w, r, true, 60);
-    expect(fired.filter((f) => f === 'minigun')).toHaveLength(4);
-    // 4 volleys x 2 pods = 8 bullets spawned
+    expect(fired.filter((f) => f === 'minigun')).toHaveLength(8);
+    // 8 volleys x 2 pods = 16 bullets spawned
     const spawned = w.bullets.items.filter((b) => b.alive || b.age > 0);
-    expect(spawned.length).toBeGreaterThanOrEqual(8);
+    expect(spawned.length).toBeGreaterThanOrEqual(16);
     expect(spawned[0].dmg).toBe(MINIGUN_DMG);
   });
 

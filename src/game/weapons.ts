@@ -5,8 +5,8 @@
 import { spawnShell, spawnSmoke, type Muzzle, type World } from './entities';
 import { ownsSlot, type RunState } from './run';
 
-export const CHAIN_INTERVAL = 0.5;      // 120 rpm
-export const MINIGUN_INTERVAL = 0.25;   // 240 rpm per barrel
+export const CHAIN_INTERVAL = 0.25;     // 240 rpm
+export const MINIGUN_INTERVAL = 0.125;  // 480 rpm per barrel
 export const MISSILE_INTERVAL = 0.5;
 export const SALVO_SIZE = 10;
 export const SALVO_TICK_GAP = 3;        // one rocket per 3 ticks
@@ -15,7 +15,7 @@ export const ROCKET_LAUNCH_SPEED = 240; // px/s
 export const ROCKET_ACCEL = 1800;       // px/s²
 export const ROCKET_SPREAD = (4 * Math.PI) / 180;
 export const CHAIN_DMG = 0.75;
-export const MINIGUN_DMG = 1;
+export const MINIGUN_DMG = 0.5;
 export const ROCKET_DMG = 2;
 export const MISSILE_DMG = 3;
 export const MISSILE_SPEED = 600;
