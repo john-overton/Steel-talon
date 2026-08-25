@@ -3,11 +3,11 @@ import { createInput } from '../../engine/input';
 import { mulberry32 } from '../../engine/rng';
 import type { Sequencer, Song } from '../../engine/sequencer';
 import { LEVEL_LENGTH } from '../waves';
-import { createTopScene } from './top';
+import { createTopScene, type SandboxHooks } from './top';
 
 const DT = 1 / 60;
 
-function makeScene() {
+function makeScene(sandbox?: SandboxHooks) {
   const input = createInput();
   const camera = { x: 0, y: 0 };
   const exits: Array<[number, number]> = [];
@@ -31,6 +31,7 @@ function makeScene() {
     makeRng: () => mulberry32(0xc0ffee),
     onExit: (s, sal) => exits.push([s, sal]),
     onAbandon: () => abandons.push(1),
+    sandbox,
   });
   return { input, camera, scene, exits, abandons, stops };
 }
@@ -138,5 +139,66 @@ describe('pause', () => {
     scene.update(DT);
     input.onKey('Escape', false);
     expect(scene.debugOverlay()).toBe('gameover');
+  });
+});
+
+function makeSandboxHooks(): { hooks: SandboxHooks; calls: Array<[number, number]>; frozen: { value: boolean } } {
+  const calls: Array<[number, number]> = [];
+  const frozen = { value: false };
+  return {
+    hooks: {
+      tick(_w, playerX, camY) { calls.push([playerX, camY]); return frozen.value; },
+      draw() {},
+    },
+    calls, frozen,
+  };
+}
+
+describe('sandbox mode', () => {
+  it('freezes scroll and skips the wave script', () => {
+    const { hooks } = makeSandboxHooks();
+    const { camera, scene } = makeScene(hooks);
+    scene.enter();
+    const y0 = camera.y;
+    for (let i = 0; i < 600; i++) scene.update(DT);
+    expect(camera.y).toBe(y0);            // no scroll
+    expect(scene.debugOverlay()).toBe('playing'); // never completes
+  });
+
+  it('starts with the full arsenal and missiles pinned at 9', () => {
+    const { hooks } = makeSandboxHooks();
+    const { scene, input } = makeScene(hooks);
+    scene.enter();
+    input.onKey('Digit2', true); scene.update(DT); input.onKey('Digit2', false);
+    expect(scene.debugSelected()).toBe(2); // miniguns owned from tick 0
+  });
+
+  it('a frozen tick advances nothing world-side', () => {
+    const { hooks, frozen } = makeSandboxHooks();
+    const { scene, camera } = makeScene(hooks);
+    scene.enter();
+    frozen.value = true;
+    const y0 = camera.y;
+    for (let i = 0; i < 60; i++) scene.update(DT);
+    expect(camera.y).toBe(y0);
+  });
+
+  it('death respawns in place instead of ending the run', () => {
+    // drive damage via debugDamage() seam; hp exhaustion must not
+    // reach the gameover overlay in sandbox mode
+    const { hooks } = makeSandboxHooks();
+    const { scene } = makeScene(hooks);
+    scene.enter();
+    for (let i = 0; i < 20; i++) scene.debugDamage();
+    expect(scene.debugOverlay()).toBe('playing');
+  });
+
+  it('the sandbox tick sees the live player x and camera y', () => {
+    const { hooks, calls } = makeSandboxHooks();
+    const { scene, camera } = makeScene(hooks);
+    scene.enter();
+    scene.update(DT);
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toBe(camera.y);
   });
 });

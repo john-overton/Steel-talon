@@ -63,6 +63,17 @@ import {
 import { WATER_FRAME_TICKS } from '../sprites/tiles';
 import { LEVEL1_SONG } from '../songs/level1';
 
+/** Optional dev-only seam: when supplied, the TOP scene runs as a sandbox
+ *  (waves off, scroll frozen, full arsenal, respawn in place) and hands each
+ *  playing tick to the host first. Production wiring never passes this. */
+export interface SandboxHooks {
+  /** Called once per playing tick, before pause handling and gameplay.
+   *  Return true to freeze this tick (e.g. the spawn overlay is open). */
+  tick(world: World, playerX: number, camY: number): boolean;
+  /** Screen-space overlay, drawn last. */
+  draw(ctx: CanvasRenderingContext2D): void;
+}
+
 export interface TopDeps {
   input: InputSource;
   audio: AudioSystem;
@@ -72,6 +83,7 @@ export interface TopDeps {
   makeRng(): () => number;
   onExit(score: number, salvage: number): void;
   onAbandon(): void;
+  sandbox?: SandboxHooks;
 }
 
 export type Overlay = 'playing' | 'paused' | 'complete' | 'gameover';
@@ -101,7 +113,12 @@ interface PreparedAssets {
 // The extra accessor is a minimal read-only test seam (playerPos itself
 // is a closure-private, reused object — never allocated per tick, never
 // exposed for mutation) so tests can assert the chopper rides the scroll.
-export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number; debugOverlay(): Overlay } {
+export function createTopScene(deps: TopDeps): Scene & {
+  debugPlayerY(): number;
+  debugOverlay(): Overlay;
+  debugSelected(): number;
+  debugDamage(): void;
+} {
   // Reused closure-level objects — no per-tick allocation.
   const playerPos = { x: 0, y: 0 };
   const MOUNTS: Mounts = {
@@ -170,6 +187,56 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
     }
   };
 
+  // Copy current input into prevInput for edge detection next tick — every
+  // overlay state (and every early return), so no stale edge fires after a
+  // transition. Mutates the reused prevInput object; allocates nothing.
+  const latchPrevInput = (): void => {
+    const input = deps.input.state;
+    prevInput.weapon1 = input.weapon1;
+    prevInput.weapon2 = input.weapon2;
+    prevInput.weapon3 = input.weapon3;
+    prevInput.weapon4 = input.weapon4;
+    prevInput.special = input.special;
+    prevInput.pause = input.pause;
+    prevInput.up = input.up;
+    prevInput.down = input.down;
+    prevInput.start = input.start;
+  };
+
+  // One hit's worth of damage resolution. In sandbox mode a fatal result
+  // respawns in place (lives/hp restored, mercy invuln) instead of ending
+  // the run, so the overlay never leaves 'playing' and the music keeps going.
+  const resolveHit = (): void => {
+    const run = state.run;
+    const world = state.world;
+    const result = damagePlayer(run);
+    if (deps.sandbox && (result === 'death' || result === 'gameover')) {
+      run.lives = 3;
+      run.hp = 3;
+      run.invulnTicks = 180;
+      for (let i = 0; i < 4; i++) spawnSmoke(world, playerPos.x, playerPos.y, 0.8);
+      deps.audio.blip(SFX.explode);
+      return;
+    }
+    switch (result) {
+      case 'hit':
+        deps.audio.blip(SFX.hit);
+        break;
+      case 'death':
+        for (let i = 0; i < 4; i++) spawnSmoke(world, playerPos.x, playerPos.y, 0.8);
+        deps.audio.blip(SFX.explode);
+        break;
+      case 'gameover':
+        deps.audio.blip(SFX.explode);
+        state.overlay = 'gameover';
+        state.overlayTicks = 0;
+        deps.sequencer.stop();
+        break;
+      case 'shrugged':
+        break;
+    }
+  };
+
   let prepared: PreparedAssets | null = null;
 
   function ensurePrepared(): PreparedAssets {
@@ -204,12 +271,25 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
     debugOverlay() {
       return state.overlay;
     },
+    debugSelected() {
+      return state.run.selected;
+    },
+    debugDamage() {
+      resolveHit();
+    },
     enter() {
       state.rng = deps.makeRng();
       state.world = createWorld(state.rng);
       state.run = createRun();
+      if (deps.sandbox) {
+        grantWeapon(state.run, 'miniguns');
+        grantWeapon(state.run, 'rockets');
+        state.run.missileAmmo = 9;
+        state.run.selected = 1;
+      }
       state.ws = createWeaponState();
-      state.script = generateWaveScript(state.rng, LEVEL_LENGTH);
+      // Sandbox runs script-free: enemies come from the spawn menu only.
+      state.script = deps.sandbox ? [] : generateWaveScript(state.rng, LEVEL_LENGTH);
       state.runner = createWaveRunner(state.script);
       state.overlay = 'playing';
       state.overlayTicks = 0;
@@ -249,6 +329,13 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
       const camera = deps.camera;
       const input = deps.input.state;
 
+      if (deps.sandbox && state.overlay === 'playing') {
+        if (deps.sandbox.tick(state.world, playerPos.x, deps.camera.y)) {
+          latchPrevInput();
+          return;
+        }
+      }
+
       const edgePause = input.pause && !prevInput.pause;
 
       if (state.overlay === 'playing' && edgePause) {
@@ -258,13 +345,16 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
       } else if (state.overlay === 'playing') {
         state.ticks++;
         tickRun(run, dt);
+        if (deps.sandbox) run.missileAmmo = 9;
 
         // Scroll. Ride the frame: apply the camera's actual delta (clamped
         // at 0, same as camera.y itself) to the player before input moves
         // them, so a hands-off chopper holds its screen position instead
         // of drifting toward the bottom as the world scrolls up under it.
         const prevCamY = camera.y;
-        camera.y = Math.max(0, camera.y - SCROLL_SPEED * dt);
+        // Sandbox holds the strip still; the delta-ride line below becomes
+        // a no-op rather than a special case.
+        camera.y = Math.max(0, camera.y - (deps.sandbox ? 0 : SCROLL_SPEED) * dt);
         playerPos.y += camera.y - prevCamY;
 
         // Move player.
@@ -337,25 +427,7 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
         const hit =
           collideEnemyBulletsPlayer(world, playerPos, PLAYER_RADIUS, invuln) ||
           collideEnemiesPlayer(world, playerPos, PLAYER_RADIUS, invuln);
-        if (hit) {
-          switch (damagePlayer(run)) {
-            case 'hit':
-              deps.audio.blip(SFX.hit);
-              break;
-            case 'death':
-              for (let i = 0; i < 4; i++) spawnSmoke(world, playerPos.x, playerPos.y, 0.8);
-              deps.audio.blip(SFX.explode);
-              break;
-            case 'gameover':
-              deps.audio.blip(SFX.explode);
-              state.overlay = 'gameover';
-              state.overlayTicks = 0;
-              deps.sequencer.stop();
-              break;
-            case 'shrugged':
-              break;
-          }
-        }
+        if (hit) resolveHit();
 
         collidePickupsPlayer(world, playerPos, 24, onPickupCollect);
 
@@ -371,7 +443,7 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
         chopper.layers[LAYER.ROTOR].frame = Math.floor(state.ticks / 4) % 2;
 
         // Outro check.
-        if (camera.y === 0 && world.enemies.countAlive() === 0 && runner.next >= script.length) {
+        if (!deps.sandbox && camera.y === 0 && world.enemies.countAlive() === 0 && runner.next >= script.length) {
           state.overlay = 'complete';
           state.overlayTicks = 0;
           deps.sequencer.stop();
@@ -405,17 +477,7 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
         }
       }
 
-      // Copy current input into prevInput for edge detection next tick —
-      // every overlay state, so no stale edge fires after a transition.
-      prevInput.weapon1 = input.weapon1;
-      prevInput.weapon2 = input.weapon2;
-      prevInput.weapon3 = input.weapon3;
-      prevInput.weapon4 = input.weapon4;
-      prevInput.special = input.special;
-      prevInput.pause = input.pause;
-      prevInput.up = input.up;
-      prevInput.down = input.down;
-      prevInput.start = input.start;
+      latchPrevInput();
     },
 
     draw(ctx) {
@@ -539,6 +601,8 @@ export function createTopScene(deps: TopDeps): Scene & { debugPlayerY(): number;
         ctx.fillText('ABANDONING FORFEITS YOUR CREDIT', WIDTH / 2, HEIGHT / 2 + 56);
         ctx.textAlign = 'left';
       }
+
+      deps.sandbox?.draw(ctx);
     },
   };
 }
