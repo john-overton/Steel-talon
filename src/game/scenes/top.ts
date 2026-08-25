@@ -117,6 +117,7 @@ export function createTopScene(deps: TopDeps): Scene & {
   debugPlayerY(): number;
   debugOverlay(): Overlay;
   debugSelected(): number;
+  debugRun(): Readonly<RunState>;
   debugDamage(): void;
 } {
   // Reused closure-level objects — no per-tick allocation.
@@ -274,7 +275,14 @@ export function createTopScene(deps: TopDeps): Scene & {
     debugSelected() {
       return state.run.selected;
     },
+    debugRun() {
+      return state.run;
+    },
+    // Test/dev drive seam only — no production caller. Clears the mercy
+    // window first so every call lands a real hit; otherwise damagePlayer()
+    // short-circuits to 'shrugged' and the fatal branches never run.
     debugDamage() {
+      state.run.invulnTicks = 0;
       resolveHit();
     },
     enter() {
@@ -330,7 +338,7 @@ export function createTopScene(deps: TopDeps): Scene & {
       const input = deps.input.state;
 
       if (deps.sandbox && state.overlay === 'playing') {
-        if (deps.sandbox.tick(state.world, playerPos.x, deps.camera.y)) {
+        if (deps.sandbox.tick(world, playerPos.x, camera.y)) {
           latchPrevInput();
           return;
         }

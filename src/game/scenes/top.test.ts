@@ -169,28 +169,70 @@ describe('sandbox mode', () => {
     const { hooks } = makeSandboxHooks();
     const { scene, input } = makeScene(hooks);
     scene.enter();
+    expect(scene.debugRun().missileAmmo).toBe(9); // pinned at enter()
     input.onKey('Digit2', true); scene.update(DT); input.onKey('Digit2', false);
     expect(scene.debugSelected()).toBe(2); // miniguns owned from tick 0
+    input.onKey('Digit3', true); scene.update(DT); input.onKey('Digit3', false);
+    expect(scene.debugSelected()).toBe(3); // rockets owned too
+    input.onKey('Digit4', true); scene.update(DT); input.onKey('Digit4', false);
+    expect(scene.debugSelected()).toBe(4); // missiles owned via the ammo pin
+  });
+
+  it('re-pins missiles at 9 every tick, so firing never drains them', () => {
+    const { hooks } = makeSandboxHooks();
+    const { scene, input } = makeScene(hooks);
+    scene.enter();
+    input.onKey('Digit4', true); scene.update(DT); input.onKey('Digit4', false);
+    input.onKey('KeyZ', true); // fire
+    for (let i = 0; i < 300; i++) scene.update(DT);
+    input.onKey('KeyZ', false);
+    expect(scene.debugRun().missileAmmo).toBe(9); // per-tick re-pin
   });
 
   it('a frozen tick advances nothing world-side', () => {
     const { hooks, frozen } = makeSandboxHooks();
-    const { scene, camera } = makeScene(hooks);
+    const { scene, camera, input } = makeScene(hooks);
     scene.enter();
-    frozen.value = true;
     const y0 = camera.y;
+    const playerY0 = scene.debugPlayerY();
+
+    // Held movement input proves the early return, not just the pinned
+    // scroll: an unfrozen sandbox tick still moves the chopper.
+    input.onKey('ArrowDown', true);
+    frozen.value = true;
     for (let i = 0; i < 60; i++) scene.update(DT);
     expect(camera.y).toBe(y0);
+    expect(scene.debugPlayerY()).toBe(playerY0);
+
+    frozen.value = false;
+    for (let i = 0; i < 60; i++) scene.update(DT);
+    input.onKey('ArrowDown', false);
+    expect(scene.debugPlayerY()).toBeGreaterThan(playerY0);
   });
 
   it('death respawns in place instead of ending the run', () => {
     // drive damage via debugDamage() seam; hp exhaustion must not
     // reach the gameover overlay in sandbox mode
     const { hooks } = makeSandboxHooks();
-    const { scene } = makeScene(hooks);
+    const { scene, stops } = makeScene(hooks);
     scene.enter();
+    // 20 real hits = 6 full life losses (3 hp each) plus 2. Without the
+    // respawn-in-place branch this reaches 'gameover' with lives 0.
     for (let i = 0; i < 20; i++) scene.debugDamage();
     expect(scene.debugOverlay()).toBe('playing');
+    expect(scene.debugRun().lives).toBe(3); // restored, never drained
+    expect(scene.debugRun().hp).toBe(1);    // 2 hits into the 7th life
+    expect(scene.debugRun().invulnTicks).toBeGreaterThan(0); // mercy window
+    expect(stops).toHaveLength(0);          // music never stopped
+  });
+
+  it('outside sandbox the same damage path still ends the run', () => {
+    const { scene, stops } = makeScene(); // no sandbox hooks
+    scene.enter();
+    for (let i = 0; i < 20; i++) scene.debugDamage();
+    expect(scene.debugOverlay()).toBe('gameover');
+    expect(scene.debugRun().lives).toBe(0);
+    expect(stops.length).toBeGreaterThan(0);
   });
 
   it('the sandbox tick sees the live player x and camera y', () => {
@@ -199,6 +241,7 @@ describe('sandbox mode', () => {
     scene.enter();
     scene.update(DT);
     expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe(320); // WIDTH / 2 at enter()
     expect(calls[0][1]).toBe(camera.y);
   });
 });
