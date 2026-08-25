@@ -28,6 +28,14 @@ import {
 } from '../entities';
 import { createHud, formatScore } from '../hud';
 import { PALETTE } from '../palette';
+import {
+  createPoseTracker,
+  poseDir,
+  poseFrameIndex,
+  poseFromVelocity,
+  type PoseDir,
+  type PoseIntensity,
+} from '../pose';
 import { createPauseMenu, pauseMenuMoved, tickPauseMenu, type PauseEdges } from '../pausemenu';
 import {
   addScore,
@@ -100,6 +108,8 @@ const SPEED = 360;
 const TERRAIN_X_OFFSET = 2180;
 const SQRT1_2 = Math.SQRT1_2;
 const PLAYER_RADIUS = 20;
+const DELTA_POSE_SLOW = 40; // px/s of weave drift before a slight bank shows
+const DELTA_POSE_FAST = 90; // px/s for the full bank
 const CHOPPER_HALF = 32; // CHOPPER_BODY is 64x64, scale 1
 const OUTRO_TICKS = 300; // 5s at 60Hz
 const TALLY_TICKS = 120; // 2s roll-up
@@ -128,9 +138,13 @@ export function createTopScene(deps: TopDeps): Scene & {
   debugSelected(): number;
   debugRun(): Readonly<RunState>;
   debugDamage(): void;
+  debugPose(): { dir: PoseDir; intensity: PoseIntensity };
 } {
   // Reused closure-level objects — no per-tick allocation.
   const playerPos = { x: 0, y: 0 };
+  // Cosmetic bank state: ramped so held input leans in over POSE_RAMP_TICKS
+  // and unwinds on release. Draw-side only — never touches gameplay position.
+  const pose = createPoseTracker();
   const MOUNTS: Mounts = {
     nose: { x: 0, y: 0, dir: 1 },
     podL: { x: 0, y: 0, dir: -1 },
@@ -294,6 +308,9 @@ export function createTopScene(deps: TopDeps): Scene & {
       state.run.invulnTicks = 0;
       resolveHit();
     },
+    debugPose() {
+      return { dir: pose.dir, intensity: pose.intensity() };
+    },
     enter() {
       state.rng = deps.makeRng();
       state.world = createWorld(state.rng);
@@ -328,6 +345,8 @@ export function createTopScene(deps: TopDeps): Scene & {
       prevInput.down = false;
       prevInput.start = false;
       pauseMenu.cursor = 0;
+      pose.dir = 'neutral';
+      pose.step = 0;
 
       // Reset layer visibility/frame state the scene owns (prepared
       // sprites, once built, are reused across runs).
@@ -381,6 +400,7 @@ export function createTopScene(deps: TopDeps): Scene & {
         if (input.right) dx += 1;
         if (input.up) dy -= 1;
         if (input.down) dy += 1;
+        pose.tick(poseDir(dx, dy));
         if (dx !== 0 && dy !== 0) {
           dx *= SQRT1_2;
           dy *= SQRT1_2;
@@ -538,6 +558,13 @@ export function createTopScene(deps: TopDeps): Scene & {
         const x = e.pos.x - camera.x;
         const y = e.pos.y - camera.y;
         if (e.enemyKind === 'delta') {
+          // Stateless bank from the analytic weave velocity: pos.x carries a
+          // sin(age * 2.2) * 56 offset, so vx = cos(age * 2.2) * 2.2 * 56.
+          // vy is the constant descent baseline — passed as 0 so it never
+          // tilts the pose.
+          const vx = Math.cos(e.age * 2.2) * 2.2 * 56;
+          const dp = poseFromVelocity(vx, 0, DELTA_POSE_SLOW, DELTA_POSE_FAST);
+          assets.delta.sprite.layers[LAYER.BODY].frame = poseFrameIndex(dp.dir, dp.intensity);
           assets.delta.sprite.layers[1].frame = Math.floor(ticks / 6) % 2;
           drawLayered(ctx, assets.delta, x, y);
         } else {
@@ -566,6 +593,7 @@ export function createTopScene(deps: TopDeps): Scene & {
       // Chopper (skip on invuln blink ticks).
       const blinking = run.invulnTicks > 0 && Math.floor(ticks / 4) % 2 === 1;
       if (!blinking) {
+        assets.chopper.sprite.layers[LAYER.BODY].frame = poseFrameIndex(pose.dir, pose.intensity());
         drawLayered(ctx, assets.chopper, playerPos.x - camera.x, playerPos.y - camera.y);
       }
 

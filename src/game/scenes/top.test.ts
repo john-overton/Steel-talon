@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createInput } from '../../engine/input';
 import { mulberry32 } from '../../engine/rng';
 import type { Sequencer, Song } from '../../engine/sequencer';
+import { POSE_RAMP_TICKS } from '../pose';
 import { LEVEL_LENGTH } from '../waves';
 import type { World } from '../entities';
 import { createTopScene, type SandboxHooks } from './top';
@@ -265,5 +266,31 @@ describe('sandbox mode', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0][0]).toBe(320); // WIDTH / 2 at enter()
     expect(calls[0][1]).toBe(camera.y);
+  });
+});
+
+describe('player banking', () => {
+  it('ramps into a left bank while left is held and decays on release', () => {
+    const { scene, input } = makeScene();
+    scene.enter();
+    input.onKey('ArrowLeft', true);
+    for (let i = 0; i < 1 + POSE_RAMP_TICKS * 2; i++) scene.update(DT);
+    expect(scene.debugPose()).toEqual({ dir: 'left', intensity: 2 });
+    input.onKey('ArrowLeft', false);
+    for (let i = 0; i < POSE_RAMP_TICKS * 2 + 1; i++) scene.update(DT);
+    expect(scene.debugPose()).toEqual({ dir: 'neutral', intensity: 0 });
+  });
+
+  it('does not advance the pose while paused', () => {
+    const { scene, input } = makeScene();
+    scene.enter();
+    input.onKey('ArrowLeft', true);
+    scene.update(DT); // adopt 'left'
+    input.onKey('Escape', true);
+    scene.update(DT); // edge -> paused
+    input.onKey('Escape', false);
+    for (let i = 0; i < POSE_RAMP_TICKS * 2; i++) scene.update(DT);
+    expect(scene.debugOverlay()).toBe('paused');
+    expect(scene.debugPose()).toEqual({ dir: 'left', intensity: 0 });
   });
 });
