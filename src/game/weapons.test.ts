@@ -3,8 +3,8 @@ import { mulberry32 } from '../engine/rng';
 import { createWorld } from './entities';
 import { createRun, grantWeapon, armMissiles, selectWeapon } from './run';
 import {
-  CHAIN_DMG, createWeaponState, MINIGUN_DMG, MISSILE_DMG, ROCKET_COOLDOWN,
-  ROCKET_DMG, SALVO_SIZE, tickWeapons, type Mounts,
+  CHAIN_DMG, createWeaponState, MINIGUN_DMG, MISSILE_DMG, ROCKET_ACCEL,
+  ROCKET_COOLDOWN, ROCKET_DMG, SALVO_SIZE, tickWeapons, type Mounts,
 } from './weapons';
 
 const DT = 1 / 60;
@@ -105,7 +105,7 @@ describe('rockets (slot 3)', () => {
     const rockets = w.bullets.items.filter((b) => b.dmg === ROCKET_DMG);
     expect(rockets).toHaveLength(SALVO_SIZE);
     for (const rk of rockets) {
-      expect(rk.accel).toBe(1800);
+      expect(rk.accel).toBe(ROCKET_ACCEL);
       expect(rk.trail).toBe(true);
       // spread: mostly upward, slight x component allowed
       expect(rk.vel.y).toBeLessThan(-220);
@@ -125,7 +125,7 @@ describe('rockets (slot 3)', () => {
       if (tickWeapons(w, r, ws, m, false, DT) === 'rocket') rocketTicks++;
     }
     expect(rocketTicks + 1 >= SALVO_SIZE || rocketTicks >= SALVO_SIZE).toBe(true); // salvo completed unheld
-    expect(r.rocketCooldown).toBeGreaterThan(18);
+    expect(r.rocketCooldown).toBe(ROCKET_COOLDOWN);
     const before = w.bullets.items.filter((b) => b.dmg === ROCKET_DMG).length;
     for (let i = 0; i < 30; i++) tickWeapons(w, r, ws, m, true, DT);
     expect(w.bullets.items.filter((b) => b.dmg === ROCKET_DMG).length).toBe(before);
