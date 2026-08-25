@@ -29,6 +29,7 @@ function makeScene(sandbox?: SandboxHooks) {
     sequencer: seq,
     camera,
     water: { tileSize: 16, tiles: [], pickTile: () => 0 },
+    terrain: { draw() {} },
     makeRng: () => mulberry32(0xc0ffee),
     onExit: (s, sal) => exits.push([s, sal]),
     onAbandon: () => abandons.push(1),

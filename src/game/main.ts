@@ -47,7 +47,7 @@ export function start(seed: number): void {
   const makeRng = (): (() => number) => mulberry32((seed ^ (runIndex++ * 0x9e3779b9)) >>> 0);
 
   const top = createTopScene({
-    input, audio, sequencer, camera: renderer.camera, water, makeRng,
+    input, audio, sequencer, camera: renderer.camera, water, terrain, makeRng,
     onExit: (score, salvage) => {
       gameOverCb(score, salvage);
       scenes.switchTo(title);

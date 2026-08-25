@@ -9,6 +9,7 @@ import { mulberry32 } from '../../engine/rng';
 import type { Scene } from '../../engine/scene';
 import type { Sequencer } from '../../engine/sequencer';
 import { drawTilemap, type Tilemap } from '../../engine/tilemap';
+import type { TerrainLayer } from '../terrain';
 import { drawLayered, prepareLayered, rasterize, type PreparedLayered } from '../../engine/sprite';
 import {
   collideBulletsEnemies,
@@ -80,6 +81,8 @@ export interface TopDeps {
   sequencer: Sequencer;
   camera: Camera;
   water: Tilemap;
+  /** Island scenery drawn over the water. Omitted by the dev sandbox. */
+  terrain?: TerrainLayer;
   makeRng(): () => number;
   onExit(score: number, salvage: number): void;
   onAbandon(): void;
@@ -499,6 +502,7 @@ export function createTopScene(deps: TopDeps): Scene & {
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
       drawTilemap(ctx, deps.water, camera.x, camera.y, WIDTH, HEIGHT, Math.floor(ticks / WATER_FRAME_TICKS));
+      deps.terrain?.draw(ctx, camera.x, camera.y, ticks);
 
       // Pickups.
       world.pickups.forEachAlive((p) => {
