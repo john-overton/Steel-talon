@@ -126,6 +126,24 @@ function nearestEnemy(w: World, x: number, y: number): Enemy | undefined {
   return best;
 }
 
+// Reused across calls to avoid a per-shot allocation; callers must not
+// retain the returned reference past their next call to this function.
+const enemyVelResult: Vec2 = { x: 0, y: 0 };
+
+// True velocity for target leading. Deltas position analytically
+// (pos.x = baseX + sin(age·FREQ)·AMP in tickEnemies), so their x velocity
+// is the weave derivative, not the (zero) vel.x field.
+export function enemyVelocity(e: Enemy): Vec2 {
+  if (e.enemyKind === 'delta') {
+    enemyVelResult.x = Math.cos(e.age * DELTA_WEAVE_FREQ) * DELTA_WEAVE_FREQ * DELTA_WEAVE_AMP;
+    enemyVelResult.y = e.vel.y;
+  } else {
+    enemyVelResult.x = e.vel.x;
+    enemyVelResult.y = e.vel.y;
+  }
+  return enemyVelResult;
+}
+
 export function tickBullets(w: World, dt: number, camY: number): void {
   w.bullets.forEachAlive((b) => {
     if (b.homing) {
