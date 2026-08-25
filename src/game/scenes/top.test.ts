@@ -3,6 +3,7 @@ import { createInput } from '../../engine/input';
 import { mulberry32 } from '../../engine/rng';
 import type { Sequencer, Song } from '../../engine/sequencer';
 import { LEVEL_LENGTH } from '../waves';
+import type { World } from '../entities';
 import { createTopScene, type SandboxHooks } from './top';
 
 const DT = 1 / 60;
@@ -155,6 +156,26 @@ function makeSandboxHooks(): { hooks: SandboxHooks; calls: Array<[number, number
 }
 
 describe('sandbox mode', () => {
+  it('minigun tracers fire from the visible barrels, symmetric about the chopper', () => {
+    // The muzzle flashes draw on the muzzleL/muzzleR anchors (±17 from
+    // center); the bullets must leave from the same points, not the pods'
+    // asymmetric top-left mount corners (-23 / +14).
+    let world: World | null = null;
+    const hooks: SandboxHooks = {
+      tick(w) { world = w; return false; },
+      draw() {},
+    };
+    const { scene, input } = makeScene(hooks);
+    scene.enter();
+    input.onKey('Digit2', true); scene.update(DT); input.onKey('Digit2', false);
+    input.onKey('KeyZ', true);
+    for (let i = 0; i < 3; i++) scene.update(DT);
+    input.onKey('KeyZ', false);
+    const xs = new Set<number>();
+    world!.bullets.forEachAlive((b) => xs.add(b.pos.x - 320));
+    expect([...xs].sort((a, b) => a - b)).toEqual([-17, 17]);
+  });
+
   it('freezes scroll and skips the wave script', () => {
     const { hooks } = makeSandboxHooks();
     const { camera, scene } = makeScene(hooks);

@@ -406,10 +406,12 @@ export function createTopScene(deps: TopDeps): Scene & {
         const a = CHOPPER_BODY.anchors;
         MOUNTS.nose.x = playerPos.x - CHOPPER_HALF + a.nose[0];
         MOUNTS.nose.y = playerPos.y - CHOPPER_HALF + a.nose[1];
-        MOUNTS.podL.x = playerPos.x - CHOPPER_HALF + a.podL[0];
-        MOUNTS.podL.y = playerPos.y - CHOPPER_HALF + a.podL[1];
-        MOUNTS.podR.x = playerPos.x - CHOPPER_HALF + a.podR[0];
-        MOUNTS.podR.y = playerPos.y - CHOPPER_HALF + a.podR[1];
+        // Fire from the barrel anchors the muzzle flashes draw on, not the
+        // pods' top-left attach corners (those are asymmetric: -23 / +14).
+        MOUNTS.podL.x = playerPos.x - CHOPPER_HALF + a.muzzleL[0];
+        MOUNTS.podL.y = playerPos.y - CHOPPER_HALF + a.muzzleL[1];
+        MOUNTS.podR.x = playerPos.x - CHOPPER_HALF + a.muzzleR[0];
+        MOUNTS.podR.y = playerPos.y - CHOPPER_HALF + a.muzzleR[1];
         MOUNTS.pylonL.x = playerPos.x - CHOPPER_HALF + a.pylonL[0];
         MOUNTS.pylonL.y = playerPos.y - CHOPPER_HALF + a.pylonL[1];
         MOUNTS.pylonR.x = playerPos.x - CHOPPER_HALF + a.pylonR[0];

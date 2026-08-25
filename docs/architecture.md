@@ -53,7 +53,7 @@ Deliberate deviation from the engine spec: the spec's snippet uses `OffscreenCan
 
 ### Player chopper (`src/game/sprites/player.ts`)
 
-`CHOPPER_BODY` is a 64x64 airframe frame with anchors `mast` (rotor hub), `podL`/`podR` (rocket pods), `muzzleL`/`muzzleR` (wing gun-flash mounts), `nose` (nose gun-flash and chain-gun fire point), and `pylonL`/`pylonR` (missile hardpoints). `ROCKET_POD` attaches once per wing. `CHOPPER_ROTOR` is a two-frame 117x117 blur disc (`+` then `x`) attached hub-to-mast. `MISSILE` hangs from a pylon by its nose. `createChopper()` returns a 9-layer `LayeredSprite`; the `LAYER` constant names each index so callers never use magic numbers (`src/game/scenes/top.ts` treats the body as `CHOPPER_HALF = 32` px half-width for screen clamping and mount recomputation):
+`CHOPPER_BODY` is a 64x64 airframe frame with anchors `mast` (rotor hub), `podL`/`podR` (rocket pods), `muzzleL`/`muzzleR` (wing barrels: gun-flash mounts and minigun fire points), `nose` (nose gun-flash and chain-gun fire point), and `pylonL`/`pylonR` (missile hardpoints). `ROCKET_POD` attaches once per wing. `CHOPPER_ROTOR` is a two-frame 117x117 blur disc (`+` then `x`) attached hub-to-mast. `MISSILE` hangs from a pylon by its nose. `createChopper()` returns a 9-layer `LayeredSprite`; the `LAYER` constant names each index so callers never use magic numbers (`src/game/scenes/top.ts` treats the body as `CHOPPER_HALF = 32` px half-width for screen clamping and mount recomputation):
 
 ```
 LAYER.BODY = 0, POD_L = 1, POD_R = 2, ROTOR = 3,
@@ -119,11 +119,11 @@ The interim milestone-4-6 `Spawner`/`createSpawner`/`tickSpawner` and `FireContr
 Four-slot arsenal: slot 1 (chain gun) is always owned; slots 2-4 (miniguns, rockets, missiles) are unlocked by pickups (`RunState.hasMiniguns`/`hasRockets`/`missileAmmo`, `src/game/run.ts`). `createWeaponState()` returns `WeaponState { cooldown, flashTicks, flashFrame, shotCount, salvoLeft, salvoTick, pylonSide }`. `tickWeapons(w, run, ws, mounts, held, dt)` ticks down `cooldown`/`flashTicks`, then: if a rocket salvo is running (`salvoLeft > 0`) it fires one rocket every `SALVO_TICK_GAP = 3` ticks regardless of `held`, starting `run.rocketCooldown` when the salvo empties; otherwise, while `held` and off cooldown and the selected slot is owned, it dispatches by `run.selected`:
 
 - **1 — chain gun**: `CHAIN_INTERVAL = 0.25s` (240 rpm), `CHAIN_DMG = 0.75`, fires at `BULLET_SPEED = 840` px/s (radius 4) from `mounts.nose`, ejects an alternating-side shell casing.
-- **2 — miniguns**: `MINIGUN_INTERVAL = 0.125s` (480 rpm/barrel), `MINIGUN_DMG = 0.5`, fires from both `podL` and `podR` each tick at the same `BULLET_SPEED`, each barrel with its own shell casing.
+- **2 — miniguns**: `MINIGUN_INTERVAL = 0.125s` (480 rpm/barrel), `MINIGUN_DMG = 0.5`, fires from both wing barrels (`podL`/`podR` mounts, filled from the `muzzleL`/`muzzleR` anchors so tracers match the flashes) each tick at the same `BULLET_SPEED`, each barrel with its own shell casing.
 - **3 — rockets**: starts a `SALVO_SIZE = 10`-rocket salvo (gated by `ROCKET_COOLDOWN = 20s`); each rocket launches at `ROCKET_LAUNCH_SPEED = 240` px/s (radius 6) with `±ROCKET_SPREAD = 4°` of angle jitter, `ROCKET_ACCEL = 1800` px/s² self-acceleration, `ROCKET_DMG = 2`, alternating pylons, with a smoke trail.
 - **4 — missiles**: `MISSILE_INTERVAL = 0.5s`, consumes one `run.missileAmmo`, `MISSILE_DMG = 3`, `MISSILE_SPEED = 600` px/s, `homing: true` and `splash: true` (so it both steers toward the nearest enemy and deals `SPLASH_RADIUS = 48` px area damage on impact).
 
-`FLASH_TICKS = 2` sizes the muzzle-flash visibility window; `Mounts` is the five named `Muzzle` points (`nose`, `podL`, `podR`, `pylonL`, `pylonR`) the scene recomputes every tick from the chopper's anchors and player position.
+`FLASH_TICKS = 2` sizes the muzzle-flash visibility window; `Mounts` is the five named `Muzzle` points (`nose`, `podL`, `podR`, `pylonL`, `pylonR`) the scene recomputes every tick from the chopper's anchors and player position; `podL`/`podR` are filled from the `muzzleL`/`muzzleR` barrel anchors, not the pods' attach corners.
 
 ## Run state (`src/game/run.ts`)
 
