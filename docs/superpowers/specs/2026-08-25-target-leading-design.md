@@ -32,9 +32,9 @@ a·t² + b·t + c = 0
 
 Nearest living enemy (by squared distance) whose bearing from `(x, y)` lies within `halfAngle` radians of **straight up** (`-Y`, the chopper's fixed nose direction). Bearing check: `angleOff = |atan2(dx, -dy)|` (0 = dead ahead) must be `<= halfAngle`. Enemies at or behind the shooter's y (i.e. `dy >= 0` when `halfAngle < π/2`) fall out naturally via the bearing test. Iterates `world.enemies.forEachAlive` — no allocation.
 
-### `enemyVelocity(e): Vec2`
+### `enemyVelocity(e): Vec2` (lives in `entities.ts`)
 
-True velocity of an enemy, for leading:
+True velocity of an enemy, for leading. Implemented in `entities.ts` (not `aim.ts`) so `aim.ts` keeps type-only runtime imports — `entities.ts` imports `intercept` from `aim.ts` for boat sprays, and this placement keeps that acyclic:
 
 - boat: `e.vel` as-is.
 - delta: `{ x: cos(e.age · DELTA_WEAVE_FREQ) · DELTA_WEAVE_FREQ · DELTA_WEAVE_AMP, y: e.vel.y }` — the analytic derivative of the weave, imported constants from `entities.ts` (same expression the draw pass already uses for delta bank poses).
@@ -47,7 +47,7 @@ Which enemy the reticle marks, given the run's selected weapon:
 
 - slot 1 (chain): `coneTarget(world, x, y, CHAIN_CONE)`.
 - slot 2 (miniguns): `coneTarget(world, x, y, MINIGUN_CONE)`.
-- slot 4 (missiles): nearest living enemy, no cone (what a launched missile's homing will chase).
+- slot 4 (missiles): nearest living enemy, no cone (what a launched missile's homing will chase) — implemented as `coneTarget` with `halfAngle = Math.PI`, which degrades to a plain nearest scan.
 - slot 3 (rockets) or no candidates: `undefined`.
 
 ### Constants (exported from `aim.ts`)
