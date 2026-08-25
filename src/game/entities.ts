@@ -185,11 +185,16 @@ export function tickParticles(w: World, dt: number): void {
 const BOAT_SHOT_SPEED = 280;
 const DELTA_SHOT_RANGE = 440;
 
+// Delta weave: pos.x = baseX + sin(age * FREQ) * AMP. Exported because the
+// draw side derives the analytic bank velocity from the same numbers.
+export const DELTA_WEAVE_FREQ = 2.2;
+export const DELTA_WEAVE_AMP = 56;
+
 export function tickEnemies(w: World, dt: number, camY: number, player: Vec2): void {
   w.enemies.forEachAlive((e) => {
     e.age += dt;
     if (e.enemyKind === 'delta') {
-      e.pos.x = e.baseX + Math.sin(e.age * 2.2) * 56;
+      e.pos.x = e.baseX + Math.sin(e.age * DELTA_WEAVE_FREQ) * DELTA_WEAVE_AMP;
       e.pos.y += e.vel.y * dt;
     } else {
       e.pos.x += e.vel.x * dt;

@@ -12,6 +12,8 @@ import { drawTilemap, type Tilemap } from '../../engine/tilemap';
 import type { TerrainLayer } from '../terrain';
 import { drawLayered, prepareLayered, rasterize, type PreparedLayered } from '../../engine/sprite';
 import {
+  DELTA_WEAVE_AMP,
+  DELTA_WEAVE_FREQ,
   collideBulletsEnemies,
   collideEnemiesPlayer,
   collideEnemyBulletsPlayer,
@@ -559,10 +561,10 @@ export function createTopScene(deps: TopDeps): Scene & {
         const y = e.pos.y - camera.y;
         if (e.enemyKind === 'delta') {
           // Stateless bank from the analytic weave velocity: pos.x carries a
-          // sin(age * 2.2) * 56 offset, so vx = cos(age * 2.2) * 2.2 * 56.
+          // sin(age * FREQ) * AMP offset (tickEnemies), so vx is its derivative.
           // vy is the constant descent baseline — passed as 0 so it never
           // tilts the pose.
-          const vx = Math.cos(e.age * 2.2) * 2.2 * 56;
+          const vx = Math.cos(e.age * DELTA_WEAVE_FREQ) * DELTA_WEAVE_FREQ * DELTA_WEAVE_AMP;
           const dp = poseFromVelocity(vx, 0, DELTA_POSE_SLOW, DELTA_POSE_FAST);
           assets.delta.sprite.layers[LAYER.BODY].frame = poseFrameIndex(dp.dir, dp.intensity);
           assets.delta.sprite.layers[1].frame = Math.floor(ticks / 6) % 2;

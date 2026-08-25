@@ -32,14 +32,24 @@ export function poseFrameIndex(dir: PoseDir, intensity: PoseIntensity): number {
   return 1 + ord * 2 + (intensity - 1);
 }
 
+export interface PoseResult { dir: PoseDir; intensity: PoseIntensity; }
+
+const velocityResult: PoseResult = { dir: 'neutral', intensity: 0 };
+
+/**
+ * Velocity -> pose, called per rendered frame. The returned object is a single
+ * module-level instance that is overwritten on every call: read its fields
+ * immediately (or destructure them); never retain it across calls.
+ */
 export function poseFromVelocity(
   vx: number, vy: number, slow: number, fast: number,
-): { dir: PoseDir; intensity: PoseIntensity } {
+): PoseResult {
   const ax = Math.abs(vx) < slow ? 0 : Math.abs(vx);
   const ay = Math.abs(vy) < slow ? 0 : Math.abs(vy);
   const speed = Math.max(ax, ay);
-  const intensity: PoseIntensity = speed >= fast ? 2 : speed >= slow ? 1 : 0;
-  return { dir: poseDir(vx, vy, slow), intensity };
+  velocityResult.dir = poseDir(vx, vy, slow);
+  velocityResult.intensity = speed >= fast ? 2 : speed >= slow ? 1 : 0;
+  return velocityResult;
 }
 
 export interface PoseTracker {

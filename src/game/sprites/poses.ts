@@ -97,6 +97,7 @@ export function buildPoseFrames(
         continue;
       }
       let g: PixelGrid = neutral;
+      // Relies on PoseDir names composing lexically: 'upleft' === 'up' + 'left'.
       const side = dir.endsWith('left') ? 'left' as const : dir.endsWith('right') ? 'right' as const : null;
       const pitch = dir.startsWith('up') ? 'up' as const : dir.startsWith('down') ? 'down' as const : null;
       if (side) g = bankGrid(g, side, intensity);
